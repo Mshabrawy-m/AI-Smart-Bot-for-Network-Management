@@ -246,6 +246,40 @@ Streamlit Cloud **cannot reach private LAN addresses** (`192.168.x.x`, `10.x.x.x
 
 ---
 
+## Results
+
+**What this system does** — monitors live/real/simulated network infrastructure (ICMP, HTTP, DNS, port scan, traceroute), classifies device/metric states with an ML anomaly detector, forecasts traffic capacity, and explains alerts / answers questions through a Groq/Gemini LLM agent with retrieval-augmented grounding and human-in-the-loop remediation.
+
+**Tools used:** scikit-learn (RandomForest + GradientBoosting ensemble, TF-IDF retrieval), statsmodels (Holt-Winters), Groq & Gemini LLM APIs, Streamlit UI, SQLite (WAL) persistence, `ping3`/`requests`/`socket`/`psutil`.
+
+### Anomaly Detection (classification) — RF + GB Ensemble
+
+Evaluated on `data/real_network_traffic.csv` (8,640 rows, 5-min intervals; 80/20 split → 6,287 normal / 625 anomalies auto-labeled in training). Ground truth = same domain rules used for auto-labeling; metrics computed on the held-out 20% test set.
+
+| Metric | Value |
+|---|---|
+| Precision | 0.993 |
+| Recall | 0.993 |
+| F1 Score | 0.993 |
+| False Positive Rate | 0.0006 |
+| True positives / false negatives | 146 / 1 |
+| False alarms | 1 |
+| Test anomalies | 147 / 1,728 (8.5%) |
+
+### Time Series Forecasting — 30-min horizon (walk-forward, n = 354 windows)
+
+| Metric | MAE | MAPE | RMSE | Model selected |
+|---|---|---|---|---|
+| bandwidth_mbps | 20.99 | 34.6% | 39.66 | Exponential smoothing (Holt-Winters, damped trend) |
+| latency_ms | 8.05 | 19.8% | 19.73 | Rolling average |
+| packet_loss_pct | 0.11 | N/A* | 0.54 | Exponential smoothing |
+
+\* MAPE is undefined for near-zero packet-loss values; MAE is the reliable metric there.
+
+Reproduce all of the above with `python dev/eval_accuracy.py`.
+
+---
+
 ## APIs & Services
 
 | Service | Purpose | Access |
@@ -389,6 +423,12 @@ Tests cover: anomaly detection outlier accuracy, alert explanation with mocked L
 | [37] | Liu, Y., Tao, S., Meng, W., Wang, J., Ma, W., Zhao, Y., Chen, Y., Yang, H., Jiang, Y., & Chen, X. — *Interpretable Online Log Analysis Using Large Language Models with Prompt Strategies (LogPrompt)*, Proc. ICPC 2024, 2023. [arxiv.org/abs/2308.07610](https://arxiv.org/abs/2308.07610) |
 | [38] | Wittkopp, T., Wiesner, P., & Kao, O. — *LogRCA: Log-based Root Cause Analysis for Distributed Services*, Euro-Par 2024, 2024. [arxiv.org/abs/2405.13599](https://arxiv.org/abs/2405.13599) |
 | [39] | Mukherjee, S. — *AI-Driven Autonomous IT Operations: A Human-in-the-Loop AIOps 2.0 Framework*, Int. J. Intell. Syst. Appl. Eng., 12(23s), 4317–4325, 2024. [doi.org/10.17762/ijisae.v12i23s.8304](https://doi.org/10.17762/ijisae.v12i23s.8304) |
+
+### Project Reference
+
+| # | Reference |
+|---|----------|
+| [40] | *AI Smart Bot for Network Management System* (graduation project, 2026). GitHub. [github.com/Mshabrawy-m/AI-Smart-Bot-for-Network-Management](https://github.com/Mshabrawy-m/AI-Smart-Bot-for-Network-Management) |
 
 ---
 
