@@ -90,63 +90,69 @@ Most student NOC dashboards stop at charts. This one closes the loop: it *explai
 
 ```mermaid
 flowchart TB
-    subgraph UI["Streamlit UI (4 pages)"]
-        H["Home"]:::page
-        C["Chatbot"]:::page
-        D["Dashboard"]:::page
-        M["Network Monitor"]:::page
-        O["AI Ops"]:::page
+    subgraph PRE["Presentation — pages/ (Streamlit)"]
+        direction TB
+        P1["Home (app.py)"]
+        P2["1_Chatbot"]
+        P3["2_Dashboard"]
+        P4["3_Network_Monitor"]
+        P5["4_AI_Ops"]
     end
 
-    subgraph Core["Core Modules"]
-        DS["data_sources<br/>(live / CSV / simulated)"]
-        LLM["llm_client<br/>(Groq + Gemini)"]
-        NM["network_monitor<br/>(ICMP/HTTP/DNS/port)"]
-        AG["agent<br/>(5-tool function calling)"]
-        CB["chatbot<br/>(RAG)"]
-        AD["anomaly_detector<br/>(RF+GB)"]
-        FC["forecasting<br/>(Holt-Winters)"]
-        KB["knowledge_base<br/>(TF-IDF)"]
-        DB["diagnostics_bridge"]
-        AO["ai_ops<br/>(troubleshooting plans)"]
-        RM["remediation<br/>(HITL state machine)"]
-        AL["alerts"]
-        ST["storage<br/>(SQLite)"]
+    subgraph CORE["Core — modules/ (services)"]
+        direction TB
+        LLM["llm_client (Groq + Gemini)"]
+        AG["agent (5-tool function calling)"]
+        CB["chatbot (RAG)"]
+        KB["knowledge_base (TF-IDF + LRU)"]
+        DI["diagnostics_bridge (alert → LLM → steps)"]
+        AO["ai_ops (troubleshooting, log RCA, predictive)"]
+        AD["anomaly_detector (RF+GB ensemble)"]
+        FC["forecasting (Holt-Winters / linear / rolling)"]
+        AL["alerts (thresholds)"]
+        RM["remediation (HITL state machine)"]
+        RPT["reports"]
+        ST["storage (SQLite WAL)"]
+        DS["data_sources (live / CSV / simulated)"]
+        NM["network_monitor (ICMP, HTTP, DNS, nmap, traceroute)"]
+        SET["settings (thresholds, i18n EN/AR)"]
     end
 
-    UI -->|queries/telemetry| DS
-    UI -->|LLM calls| LLM
-    UI -->|network probes| NM
-    UI -->|agentic Q&A| AG
-    UI -->|RAG Q&A| CB
-    UI -->|anomaly scores| AD
-    UI -->|forecasts| FC
-    UI -->|explain alerts| DB
-    UI -->|ops plans| AO
-    UI -->|remediation| RM
+    ext1["External: Groq / Gemini APIs"]
+    ext2["External: hosts & 30-day CSV"]
 
-    DB --> KB
-    DB --> LLM
+    P2 --> AG
+    P2 --> CB
+    P3 --> NM
+    P3 --> DS
+    P4 --> AD
+    P4 --> AO
+    P4 --> RM
+    P5 --> RPT
+
     AG --> KB
     AG --> LLM
     CB --> KB
     CB --> LLM
+    DI --> KB
+    DI --> LLM
+    AO --> DI
+    AO --> AL
     AL --> DS
     AD --> DS
     FC --> DS
-    AO --> AL
-    AO --> DS
     RM --> AL
-    ST --> DB
+    RPT --> AL
+
+    DS --> NM
+    DS --> SET
     ST --> AL
     ST --> RM
+    ST --> DS
 
-    classDef page fill:#0e3a5f,color:#fff,stroke:#1f75ad
-    classDef core fill:#1f2933,color:#fff,stroke:#475569
-    class H,C,D,M,O page
-    class DS,LLM,NM,AG,CB,AD,FC,KB,DB,AO,RM,AL,ST core
-
-    style UI fill:#0b1f33,stroke:#38bdf8,color:#fff
+    LLM --> ext1
+    NM --> ext2
+    DS --> ext2
 ```
 
 ### Alert → Explanation flow
