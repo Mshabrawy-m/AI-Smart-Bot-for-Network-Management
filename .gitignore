@@ -16,6 +16,8 @@ env/
 
 # SQLite
 *.db
+*.db-shm
+*.db-wal
 tmp_*.db
 
 # Test / tooling artifacts
@@ -29,3 +31,11 @@ htmlcov/
 *.swp
 .DS_Store
 Thumbs.db
+
+# Agent configuration
+.claude/
+.kiro/
+.qoder/
+
+# AutoClaw KDream data
+.autoclaw/

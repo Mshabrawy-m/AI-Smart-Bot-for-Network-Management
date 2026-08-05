@@ -10,7 +10,11 @@ import uuid
 
 import streamlit as st
 
-from modules.storage import save_remediation_incident, get_remediation_incidents
+try:
+    from modules.storage import save_remediation_incident, get_remediation_incidents
+except (ImportError, KeyError):
+    def save_remediation_incident(*_a, **_kw): pass  # type: ignore[misc]
+    def get_remediation_incidents(*_a, **_kw): return []  # type: ignore[misc]
 
 
 class RemediationState(Enum):

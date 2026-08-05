@@ -1106,73 +1106,192 @@ def traceroute(host: str, max_hops: int = 30, timeout: float = 2.0) -> List[Dict
 
 def create_latency_chart(history: List[Dict[str, Any]], host: str):
     """
-    Create a Plotly chart showing latency over time.
+    Create an enhanced Plotly chart showing latency over time with
+    statistical overlays (mean, jitter band) and color-coded markers.
     Returns a Plotly figure or None if plotly is not available.
     """
     if go is None or not history:
         return None
-    
+
     # Filter results for the specific host
     host_history = [h for h in history if h.get("host") == host and h.get("latency_ms") is not None]
-    
+
     if not host_history:
         return None
-    
+
     latencies = [h.get("latency_ms", 0) for h in host_history]
-    
+    timestamps = [h.get("timestamp", "") for h in host_history]
+    x_vals = [ts[:19] if ts else str(i) for i, ts in enumerate(timestamps)]
+
+    # Compute statistics
+    mean_lat = statistics.mean(latencies) if latencies else 0
+    std_lat  = statistics.stdev(latencies) if len(latencies) > 1 else 0
+    min_lat  = min(latencies) if latencies else 0
+    max_lat  = max(latencies) if latencies else 0
+    jitter   = statistics.stdev(latencies) if len(latencies) > 1 else 0
+
+    # Color-code markers: green (normal), yellow (above mean+std), red (above mean+2*std)
+    marker_colors = []
+    for v in latencies:
+        if v > mean_lat + 2 * std_lat and std_lat > 0:
+            marker_colors.append("#EF4444")  # red — outlier
+        elif v > mean_lat + std_lat and std_lat > 0:
+            marker_colors.append("#F59E0B")  # yellow — elevated
+        else:
+            marker_colors.append("#22C55E")  # green — normal
+
     fig = go.Figure()
+
+    # Jitter band (mean ± 1 std)
+    if std_lat > 0:
+        fig.add_hrect(y0=mean_lat - std_lat, y1=mean_lat + std_lat,
+                      fillcolor="rgba(56,189,248,0.06)", line_width=0,
+                      layer="below")
+
+    # Main latency line with color-coded markers
     fig.add_trace(go.Scatter(
-        x=list(range(len(latencies))),
-        y=latencies,
+        x=x_vals, y=latencies,
         mode='lines+markers',
         name=f'{host} Latency',
-        line=dict(color='#00ff00', width=2),
-        marker=dict(size=6)
+        line=dict(color='#38BDF8', width=2),
+        marker=dict(size=8, color=marker_colors,
+                    line=dict(color='#0F172A', width=1)),
+        hovertemplate='<b>Ping %{x}</b><br>Latency: %{y:.2f} ms<extra></extra>',
     ))
-    
+
+    # Mean reference line
+    fig.add_hline(y=mean_lat, line_dash='dash', line_color='#22C55E',
+                  line_width=1.2,
+                  annotation_text=f'Mean {mean_lat:.1f} ms',
+                  annotation_font_color='#22C55E', annotation_font_size=10,
+                  annotation_position='top left')
+
+    # Median line (if different enough from mean)
+    median_lat = statistics.median(latencies)
+    if abs(median_lat - mean_lat) > 0.5:
+        fig.add_hline(y=median_lat, line_dash='dot', line_color='#A78BFA',
+                      line_width=1,
+                      annotation_text=f'Median {median_lat:.1f} ms',
+                      annotation_font_color='#A78BFA', annotation_font_size=9,
+                      annotation_position='bottom left')
+
+    # Annotate peak
+    peak_idx = latencies.index(max_lat)
+    fig.add_annotation(x=x_vals[peak_idx], y=max_lat,
+                       text=f'Peak {max_lat:.1f} ms',
+                       showarrow=True, arrowhead=2, arrowcolor='#F59E0B',
+                       font=dict(color='#F59E0B', size=10), ay=-30)
+
     fig.update_layout(
-        title=f'Latency History for {host}',
-        xaxis_title='Ping Number',
+        title=dict(text=f'Latency History — {host}',
+                   subtitle=dict(
+                       text=f'Jitter: {jitter:.1f} ms  |  '
+                            f'Range: {min_lat:.1f}–{max_lat:.1f} ms  |  '
+                            f'N={len(latencies)} pings',
+                       font=dict(size=11, color='#64748B'),
+                   )),
+        xaxis_title='Ping',
         yaxis_title='Latency (ms)',
         template='plotly_dark',
-        height=400,
-        margin=dict(l=50, r=50, t=50, b=50)
+        height=440,
+        margin=dict(l=50, r=50, t=70, b=50),
+        plot_bgcolor='#0F172A', paper_bgcolor='#0F172A',
+        font_color='#94A3B8',
+        xaxis=dict(gridcolor='#1E293B'),
+        yaxis=dict(gridcolor='#1E293B', zerolinecolor='#334155'),
+        legend=dict(orientation='h', y=-0.2, bgcolor='rgba(0,0,0,0)'),
+        hovermode='x unified',
     )
-    
+
     return fig
 
 
 def create_multi_host_chart(results: List[Dict[str, Any]]):
     """
-    Create a bar chart comparing latency across multiple hosts.
+    Create an enhanced bar chart comparing latency across multiple hosts,
+    sorted by latency, with average reference line and status indicators.
     Returns a Plotly figure or None if plotly is not available.
     """
     if go is None or not results:
         return None
-    
-    hosts = [r.get("host", "Unknown") for r in results]
-    latencies = [r.get("latency_ms", 0) if r.get("latency_ms") is not None else 0 for r in results]
-    colors = ['#00ff00' if r.get("status") == "up" else '#ff0000' for r in results]
-    
-    fig = go.Figure(data=[
-        go.Bar(
-            x=hosts,
-            y=latencies,
-            marker_color=colors,
-            text=[f'{l}ms' if l > 0 else 'N/A' for l in latencies],
-            textposition='auto',
-        )
-    ])
-    
+
+    # Sort by latency (ascending), putting failed hosts at the end
+    sorted_results = sorted(
+        results,
+        key=lambda r: r.get("latency_ms") if r.get("latency_ms") is not None else 99999,
+    )
+
+    hosts     = [r.get("host", "Unknown") for r in sorted_results]
+    latencies = [r.get("latency_ms", 0) if r.get("latency_ms") is not None else 0
+                 for r in sorted_results]
+    statuses  = [r.get("status", "unknown") for r in sorted_results]
+
+    # Gradient coloring: green (low) → yellow (mid) → red (high), gray for down
+    valid_latencies = [l for l, s in zip(latencies, statuses) if s == "up" and l > 0]
+    avg_latency = statistics.mean(valid_latencies) if valid_latencies else 0
+
+    colors = []
+    for lat, status in zip(latencies, statuses):
+        if status != "up":
+            colors.append('#EF4444')  # red for down
+        elif lat <= avg_latency:
+            colors.append('#22C55E')  # green — below average
+        elif lat <= avg_latency * 1.5:
+            colors.append('#F59E0B')  # yellow — elevated
+        else:
+            colors.append('#EF4444')  # red — high latency
+
+    # Build text labels with status indicator
+    text_labels = []
+    for lat, status in zip(latencies, statuses):
+        if status == "up":
+            text_labels.append(f'{lat:.1f} ms')
+        else:
+            text_labels.append(f'DOWN')
+
+    fig = go.Figure()
+
+    fig.add_trace(go.Bar(
+        x=hosts, y=latencies,
+        marker_color=colors,
+        text=text_labels,
+        textposition='outside',
+        textfont=dict(size=10),
+        hovertemplate='<b>%{x}</b><br>Latency: %{y:.1f} ms<br>Status: %{text}<extra></extra>',
+        customdata=text_labels,
+    ))
+
+    # Average reference line
+    if avg_latency > 0:
+        fig.add_hline(y=avg_latency, line_dash='dash', line_color='#38BDF8',
+                      line_width=1.2,
+                      annotation_text=f'Avg {avg_latency:.1f} ms',
+                      annotation_font_color='#38BDF8', annotation_font_size=10,
+                      annotation_position='top right')
+
+    # Status summary in subtitle
+    up_count   = sum(1 for s in statuses if s == "up")
+    down_count = len(statuses) - up_count
+
     fig.update_layout(
-        title='Multi-Host Latency Comparison',
+        title=dict(text='Multi-Host Latency Comparison',
+                   subtitle=dict(
+                       text=f'{up_count} up  |  {down_count} down  |  '
+                            f'Avg: {avg_latency:.1f} ms',
+                       font=dict(size=11, color='#64748B'),
+                   )),
         xaxis_title='Host',
         yaxis_title='Latency (ms)',
         template='plotly_dark',
-        height=400,
-        margin=dict(l=50, r=50, t=50, b=50)
+        height=440,
+        margin=dict(l=50, r=50, t=70, b=50),
+        plot_bgcolor='#0F172A', paper_bgcolor='#0F172A',
+        font_color='#94A3B8',
+        xaxis=dict(gridcolor='#1E293B', tickangle=-20),
+        yaxis=dict(gridcolor='#1E293B', zerolinecolor='#334155'),
+        showlegend=False,
     )
-    
+
     return fig
 
 

@@ -13,8 +13,13 @@ from modules.llm_client import LLMConfigurationError
 from modules.data_sources import get_data_source, render_data_source_sidebar
 from modules.forecasting import NetworkForecaster
 from modules.settings import get_text, init_session_settings
-from modules.storage import save_alert, get_history, get_evaluation_metrics
-from modules.ui import inject_global_css
+try:
+    from modules.storage import save_alert, get_history, get_evaluation_metrics
+except (ImportError, KeyError):
+    def save_alert(*_a, **_kw): pass  # type: ignore[misc]
+    def get_history(*_a, **_kw): return {"alerts": []}  # type: ignore[misc]
+    def get_evaluation_metrics(*_a, **_kw): return {"total_events": 0, "hit_rate": 0, "avg_latency_ms": None}  # type: ignore[misc]
+from modules.ui import inject_global_css, stretch_kwargs
 from modules.remediation import get_remediation_engine
 from modules.reports import get_report_generator
 
@@ -229,7 +234,7 @@ with tab_devices:
         "cpu_usage": "CPU", "latency_ms": "Latency", "packet_loss_pct": "Pkt Loss",
         "bandwidth_mbps": "Bandwidth", "uptime_pct": "Uptime",
     })
-    st.dataframe(display_df, use_container_width=True, hide_index=True)
+    st.dataframe(display_df, hide_index=True, **stretch_kwargs())
 
     st.markdown('<hr class="section-rule">', unsafe_allow_html=True)
     st.markdown('<span class="kpi-label">Per-device metrics</span>', unsafe_allow_html=True)
@@ -237,55 +242,153 @@ with tab_devices:
     bc1, bc2 = st.columns(2)
     raw = st.session_state.devices_df  # use raw numeric df for charts
 
+    # ── Shared dark layout helper ──────────────────────────────────────────
+    _dark = dict(plot_bgcolor="#0F172A", paper_bgcolor="#0F172A",
+                 font_color="#94A3B8", margin=dict(t=44, b=0, l=0, r=0),
+                 xaxis_tickangle=-30)
+
     with bc1:
         fig = go.Figure()
+        cpu_colors = [
+            "#EF4444" if v >= cpu_threshold else "#F59E0B" if v >= cpu_threshold * 0.75 else "#22C55E"
+            for v in raw["cpu_usage"]
+        ]
         fig.add_trace(go.Bar(
             x=raw["name"], y=raw["cpu_usage"],
-            marker_color=[
-                "#EF4444" if v >= cpu_threshold else "#F59E0B" if v >= cpu_threshold * 0.75 else "#22C55E"
-                for v in raw["cpu_usage"]
-            ],
-            name="CPU %",
+            marker_color=cpu_colors, name="CPU %",
+            text=[f"{v:.1f}%" for v in raw["cpu_usage"]], textposition="outside",
+            hovertemplate="<b>%{x}</b><br>CPU: %{y:.1f}%%<extra></extra>",
         ))
-        fig.update_layout(
-            title="CPU Usage (%)", yaxis_range=[0, 100],
-            plot_bgcolor="#0F172A", paper_bgcolor="#0F172A",
-            font_color="#94A3B8", margin=dict(t=36, b=0, l=0, r=0),
-            xaxis_tickangle=-30,
-        )
-        st.plotly_chart(fig, use_container_width=True)
+        # Threshold reference lines
+        fig.add_hline(y=cpu_threshold, line_dash="dash", line_color="#EF4444",
+                      line_width=1.2,
+                      annotation_text=f"Critical {cpu_threshold}%", annotation_font_color="#EF4444",
+                      annotation_font_size=10, annotation_position="top right")
+        fig.add_hline(y=cpu_threshold * 0.75, line_dash="dot", line_color="#F59E0B",
+                      line_width=1,
+                      annotation_text=f"Warning {cpu_threshold * 0.75:.0f}%", annotation_font_color="#F59E0B",
+                      annotation_font_size=9, annotation_position="top right")
+        # Peak annotation
+        peak_idx = raw["cpu_usage"].idxmax()
+        peak_name = raw.loc[peak_idx, "name"]
+        peak_val  = raw.loc[peak_idx, "cpu_usage"]
+        fig.add_annotation(x=peak_name, y=peak_val, text=f"Peak {peak_val:.0f}%",
+                           showarrow=True, arrowhead=2, arrowcolor="#F59E0B",
+                           font=dict(color="#F59E0B", size=10), ay=-30)
+        fig.update_layout(title="CPU Usage (%)", yaxis_range=[0, 110],
+                          xaxis=dict(gridcolor="#1E293B"),
+                          yaxis=dict(gridcolor="#1E293B", zerolinecolor="#334155"), **_dark)
+        st.plotly_chart(fig, **stretch_kwargs())
 
     with bc2:
         lat_df = raw.dropna(subset=["latency_ms"])
         fig2 = go.Figure()
+        lat_colors = [
+            "#EF4444" if v >= lat_threshold else "#F59E0B" if v >= lat_threshold * 0.75 else "#22C55E"
+            for v in lat_df["latency_ms"]
+        ]
         fig2.add_trace(go.Bar(
             x=lat_df["name"], y=lat_df["latency_ms"],
-            marker_color=[
-                "#EF4444" if v >= lat_threshold else "#F59E0B" if v >= lat_threshold * 0.75 else "#22C55E"
-                for v in lat_df["latency_ms"]
-            ],
-            name="Latency ms",
+            marker_color=lat_colors, name="Latency ms",
+            text=[f"{v:.0f} ms" for v in lat_df["latency_ms"]], textposition="outside",
+            hovertemplate="<b>%{x}</b><br>Latency: %{y:.1f} ms<extra></extra>",
         ))
-        fig2.update_layout(
-            title="Latency (ms)",
-            plot_bgcolor="#0F172A", paper_bgcolor="#0F172A",
-            font_color="#94A3B8", margin=dict(t=36, b=0, l=0, r=0),
-            xaxis_tickangle=-30,
-        )
-        st.plotly_chart(fig2, use_container_width=True)
+        fig2.add_hline(y=lat_threshold, line_dash="dash", line_color="#EF4444",
+                       line_width=1.2,
+                       annotation_text=f"Critical {lat_threshold} ms", annotation_font_color="#EF4444",
+                       annotation_font_size=10, annotation_position="top right")
+        fig2.add_hline(y=lat_threshold * 0.75, line_dash="dot", line_color="#F59E0B",
+                       line_width=1,
+                       annotation_text=f"Warning {lat_threshold * 0.75:.0f} ms", annotation_font_color="#F59E0B",
+                       annotation_font_size=9, annotation_position="top right")
+        if len(lat_df) > 0:
+            peak_lat_idx = lat_df["latency_ms"].idxmax()
+            fig2.add_annotation(
+                x=lat_df.loc[peak_lat_idx, "name"], y=lat_df.loc[peak_lat_idx, "latency_ms"],
+                text=f"Peak {lat_df.loc[peak_lat_idx, 'latency_ms']:.0f} ms",
+                showarrow=True, arrowhead=2, arrowcolor="#F59E0B",
+                font=dict(color="#F59E0B", size=10), ay=-30)
+        fig2.update_layout(title="Latency (ms)",
+                           xaxis=dict(gridcolor="#1E293B"),
+                           yaxis=dict(gridcolor="#1E293B", zerolinecolor="#334155"), **_dark)
+        st.plotly_chart(fig2, **stretch_kwargs())
 
+    # Bandwidth with threshold-aware coloring
+    bw_max = raw["bandwidth_mbps"].max() if len(raw) > 0 else 1
+    bw_threshold = bw_max * 0.85  # high utilization warning
     fig3 = go.Figure()
     fig3.add_trace(go.Bar(
         x=raw["name"], y=raw["bandwidth_mbps"],
-        marker_color="#38BDF8", name="Bandwidth Mbps",
+        marker_color=[
+            "#F59E0B" if v >= bw_threshold else "#38BDF8"
+            for v in raw["bandwidth_mbps"]
+        ],
+        name="Bandwidth Mbps",
+        text=[f"{v:.0f}" for v in raw["bandwidth_mbps"]], textposition="outside",
+        hovertemplate="<b>%{x}</b><br>Bandwidth: %{y:.0f} Mbps<extra></extra>",
     ))
-    fig3.update_layout(
-        title="Bandwidth Snapshot (Mbps)",
-        plot_bgcolor="#0F172A", paper_bgcolor="#0F172A",
-        font_color="#94A3B8", margin=dict(t=36, b=0, l=0, r=0),
-        xaxis_tickangle=-30,
+    fig3.add_hline(y=bw_threshold, line_dash="dot", line_color="#F59E0B",
+                   line_width=1,
+                   annotation_text=f"High utilization {bw_threshold:.0f} Mbps",
+                   annotation_font_color="#F59E0B", annotation_font_size=9,
+                   annotation_position="top right")
+    fig3.update_layout(title="Bandwidth Snapshot (Mbps)",
+                       xaxis=dict(gridcolor="#1E293B"),
+                       yaxis=dict(gridcolor="#1E293B", zerolinecolor="#334155"), **_dark)
+    st.plotly_chart(fig3, **stretch_kwargs())
+
+    # ── Device Health Radar Chart ──────────────────────────────────────────
+    st.markdown('<hr class="section-rule">', unsafe_allow_html=True)
+    st.markdown('<span class="kpi-label">Device Health Overview</span>', unsafe_allow_html=True)
+    st.caption("Radar chart — normalized metrics per device (lower = healthier)")
+
+    radar_df = raw.copy()
+    # Normalize each metric to 0-1 range for radar comparison
+    for col in ["cpu_usage", "latency_ms", "packet_loss_pct"]:
+        col_max = radar_df[col].max() if radar_df[col].max() > 0 else 1
+        radar_df[f"{col}_norm"] = radar_df[col] / col_max
+    # Invert bandwidth (higher is better) → lower = healthier
+    bw_max_r = radar_df["bandwidth_mbps"].max() if radar_df["bandwidth_mbps"].max() > 0 else 1
+    radar_df["bandwidth_norm"] = 1 - (radar_df["bandwidth_mbps"] / bw_max_r)
+
+    radar_metrics = ["cpu_usage_norm", "latency_ms_norm", "packet_loss_pct_norm", "bandwidth_norm"]
+    radar_labels  = ["CPU Load", "Latency", "Packet Loss", "BW Under-util"]
+
+    fig_radar = go.Figure()
+    radar_colors = ["#38BDF8", "#A78BFA", "#22C55E", "#F59E0B", "#EF4444",
+                    "#F87171", "#34D399", "#FB923C"]
+
+    def _hex_to_rgba(hex_color: str, alpha: float = 0.08) -> str:
+        h = hex_color.lstrip("#")
+        return f"rgba({int(h[0:2],16)},{int(h[2:4],16)},{int(h[4:6],16)},{alpha})"
+
+    for i, (_, row) in enumerate(radar_df.iterrows()):
+        vals = [row[m] for m in radar_metrics]
+        vals.append(vals[0])  # close the polygon
+        cats = list(radar_labels) + [radar_labels[0]]
+        color = radar_colors[i % len(radar_colors)]
+        fig_radar.add_trace(go.Scatterpolar(
+            r=vals, theta=cats, fill="toself",
+            name=str(row["name"]),
+            line=dict(color=color, width=2),
+            fillcolor=_hex_to_rgba(color, 0.08),
+            opacity=0.85,
+        ))
+    fig_radar.update_layout(
+        polar=dict(
+            bgcolor="#0F172A",
+            radialaxis=dict(visible=True, range=[0, 1], gridcolor="#1E293B",
+                            tickfont=dict(size=9, color="#64748B")),
+            angularaxis=dict(gridcolor="#1E293B",
+                             tickfont=dict(size=10, color="#94A3B8")),
+        ),
+        plot_bgcolor="#0F172A", paper_bgcolor="#0F172A", font_color="#94A3B8",
+        legend=dict(orientation="h", y=-0.15, bgcolor="rgba(0,0,0,0)",
+                    font=dict(size=9)),
+        margin=dict(t=20, b=0, l=0, r=0),
+        height=420,
     )
-    st.plotly_chart(fig3, use_container_width=True)
+    st.plotly_chart(fig_radar, **stretch_kwargs())
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # TAB 3 — TRAFFIC & FORECAST
@@ -322,49 +425,100 @@ with tab_traffic:
 
     st.markdown('<hr class="section-rule">', unsafe_allow_html=True)
 
-    # 24-hour traffic chart — bandwidth + latency dual axis
+    # 24-hour traffic chart — bandwidth + latency dual axis with moving average & forecast band
     st.markdown('<span class="kpi-label">24-hour traffic history</span>', unsafe_allow_html=True)
 
     tdf = traffic_df.copy()
     tdf["timestamp"] = pd.to_datetime(tdf["timestamp"])
 
+    # Compute rolling averages for trend overlay
+    window_size = max(3, len(tdf) // 20)
+    tdf["bw_ma"]  = tdf["bandwidth_mbps"].rolling(window=window_size, min_periods=1).mean()
+    tdf["lat_ma"] = tdf["latency_ms"].rolling(window=window_size, min_periods=1).mean()
+
     fig_traffic = go.Figure()
+
+    # Bandwidth — area fill
     fig_traffic.add_trace(go.Scatter(
         x=tdf["timestamp"], y=tdf["bandwidth_mbps"],
         mode="lines", name="Bandwidth (Mbps)",
         line=dict(color="#38BDF8", width=1.5),
-        fill="tozeroy", fillcolor="rgba(56,189,248,0.08)",
+        fill="tozeroy", fillcolor="rgba(56,189,248,0.06)",
+        hovertemplate="<b>%{x|%H:%M}</b><br>BW: %{y:.1f} Mbps<extra></extra>",
+    ))
+    # Bandwidth moving average
+    fig_traffic.add_trace(go.Scatter(
+        x=tdf["timestamp"], y=tdf["bw_ma"],
+        mode="lines", name=f"BW moving avg ({window_size})",
+        line=dict(color="#38BDF8", width=2, dash="dash"),
+        opacity=0.7,
     ))
 
-    # Add forecast point
+    # Forecast confidence band + point
     if fc_bw.get("predicted_value") is not None:
         last_ts = tdf["timestamp"].max()
         fut_ts  = last_ts + pd.Timedelta(minutes=30)
+        # Confidence band (shaded region)
+        fig_traffic.add_trace(go.Scatter(
+            x=[last_ts, fut_ts, fut_ts, last_ts],
+            y=[fc_bw["lower_bound"], fc_bw["lower_bound"],
+               fc_bw["upper_bound"], fc_bw["upper_bound"]],
+            fill="toself", fillcolor="rgba(245,158,11,0.12)",
+            line=dict(color="rgba(0,0,0,0)"),
+            name="BW 95% CI band",
+            showlegend=True, hoverinfo="skip",
+        ))
+        # Forecast diamond marker
         fig_traffic.add_trace(go.Scatter(
             x=[fut_ts], y=[fc_bw["predicted_value"]],
-            mode="markers", name="BW forecast (+30 min)",
-            marker=dict(color="#F59E0B", size=10, symbol="diamond"),
-            error_y=dict(
-                type="data",
-                symmetric=False,
-                array=[fc_bw["upper_bound"] - fc_bw["predicted_value"]],
-                arrayminus=[fc_bw["predicted_value"] - fc_bw["lower_bound"]],
-                color="#F59E0B",
-            ),
+            mode="markers+text", name="BW forecast (+30 min)",
+            marker=dict(color="#F59E0B", size=12, symbol="diamond",
+                        line=dict(color="#0F172A", width=2)),
+            text=[f"{fc_bw['predicted_value']:.1f}"],
+            textposition="top center", textfont=dict(color="#F59E0B", size=10),
         ))
 
+    # Latency — dotted line on y2
     fig_traffic.add_trace(go.Scatter(
         x=tdf["timestamp"], y=tdf["latency_ms"],
         mode="lines", name="Latency (ms)",
         line=dict(color="#A78BFA", width=1, dash="dot"),
         yaxis="y2",
+        hovertemplate="<b>%{x|%H:%M}</b><br>Latency: %{y:.1f} ms<extra></extra>",
     ))
+    # Latency moving average
+    fig_traffic.add_trace(go.Scatter(
+        x=tdf["timestamp"], y=tdf["lat_ma"],
+        mode="lines", name=f"Latency MA ({window_size})",
+        line=dict(color="#A78BFA", width=2, dash="dashdot"),
+        yaxis="y2", opacity=0.6,
+    ))
+
+    # Latency forecast marker on y2
+    if fc_lat.get("predicted_value") is not None:
+        fig_traffic.add_trace(go.Scatter(
+            x=[fut_ts], y=[fc_lat["predicted_value"]],
+            mode="markers", name="Latency forecast",
+            marker=dict(color="#A78BFA", size=10, symbol="diamond-open",
+                        line=dict(width=2)),
+            yaxis="y2",
+        ))
+
+    # Threshold warning band for bandwidth (shaded region above threshold)
+    bw_thresh_val = raw["bandwidth_mbps"].max() * 0.9 if "raw" in dir() else None
+    fig_traffic.add_hline(y=lat_threshold, yref="y2", line_dash="dot",
+                          line_color="#EF4444", line_width=0.8, opacity=0.5,
+                          annotation_text=f"Latency warn {lat_threshold} ms",
+                          annotation_font_color="#EF4444", annotation_font_size=8,
+                          annotation_position="bottom right", annotation_yref="y2")
 
     fig_traffic.update_layout(
         plot_bgcolor="#0F172A", paper_bgcolor="#0F172A",
         font_color="#94A3B8",
-        legend=dict(orientation="h", y=1.05, bgcolor="rgba(0,0,0,0)"),
-        xaxis=dict(gridcolor="#1E293B"),
+        legend=dict(orientation="h", y=1.08, bgcolor="rgba(0,0,0,0)",
+                    font=dict(size=9)),
+        xaxis=dict(gridcolor="#1E293B", showspikes=True, spikecolor="#475569",
+                   spikethickness=1, spikedash="dot", spikemode="across"),
         yaxis=dict(title=dict(text="Bandwidth (Mbps)", font=dict(color="#38BDF8")),
                    gridcolor="#1E293B"),
         yaxis2=dict(title=dict(text="Latency (ms)", font=dict(color="#A78BFA")),
@@ -372,26 +526,63 @@ with tab_traffic:
         margin=dict(t=20, b=0, l=0, r=0),
         hovermode="x unified",
     )
-    st.plotly_chart(fig_traffic, use_container_width=True)
+    st.plotly_chart(fig_traffic, **stretch_kwargs())
 
-    # Packet loss chart
+    # Packet loss chart — with threshold line, MA, and spike annotations
     st.markdown('<span class="kpi-label">Packet loss %</span>', unsafe_allow_html=True)
+    tdf["pkt_ma"] = tdf["packet_loss_pct"].rolling(window=window_size, min_periods=1).mean()
+    pkt_mean = tdf["packet_loss_pct"].mean()
+    pkt_std  = tdf["packet_loss_pct"].std() if len(tdf) > 1 else 0
+
     fig_pkt = go.Figure()
     fig_pkt.add_trace(go.Scatter(
         x=tdf["timestamp"], y=tdf["packet_loss_pct"],
         mode="lines", name="Packet loss %",
         line=dict(color="#F87171", width=1),
-        fill="tozeroy", fillcolor="rgba(248,113,113,0.08)",
+        fill="tozeroy", fillcolor="rgba(248,113,113,0.06)",
+        hovertemplate="<b>%{x|%H:%M}</b><br>Loss: %{y:.2f}%%<extra></extra>",
     ))
+    # Moving average overlay
+    fig_pkt.add_trace(go.Scatter(
+        x=tdf["timestamp"], y=tdf["pkt_ma"],
+        mode="lines", name=f"MA ({window_size})",
+        line=dict(color="#F59E0B", width=2, dash="dash"),
+        opacity=0.8,
+    ))
+    # Threshold reference line
+    fig_pkt.add_hline(y=pkt_threshold, line_dash="dash", line_color="#EF4444",
+                      line_width=1.2,
+                      annotation_text=f"Warning {pkt_threshold}%", annotation_font_color="#EF4444",
+                      annotation_font_size=10, annotation_position="top right")
+    # Mean reference line
+    fig_pkt.add_hline(y=pkt_mean, line_dash="dot", line_color="#64748B",
+                      line_width=1,
+                      annotation_text=f"Mean {pkt_mean:.2f}%", annotation_font_color="#64748B",
+                      annotation_font_size=9, annotation_position="top left")
+    # Annotate spikes above mean + 2*std
+    if pkt_std > 0:
+        spike_threshold = pkt_mean + 2 * pkt_std
+        spikes = tdf[tdf["packet_loss_pct"] > spike_threshold]
+        for _, spike_row in spikes.head(5).iterrows():
+            fig_pkt.add_annotation(
+                x=spike_row["timestamp"], y=spike_row["packet_loss_pct"],
+                text=f"{spike_row['packet_loss_pct']:.2f}%",
+                showarrow=True, arrowhead=2, arrowcolor="#F87171",
+                font=dict(color="#F87171", size=9), ay=-25,
+            )
+
     fig_pkt.update_layout(
         plot_bgcolor="#0F172A", paper_bgcolor="#0F172A",
         font_color="#94A3B8",
-        xaxis=dict(gridcolor="#1E293B"),
+        legend=dict(orientation="h", y=1.05, bgcolor="rgba(0,0,0,0)",
+                    font=dict(size=9)),
+        xaxis=dict(gridcolor="#1E293B", showspikes=True, spikecolor="#475569",
+                   spikethickness=1, spikedash="dot"),
         yaxis=dict(title="Packet Loss (%)", gridcolor="#1E293B"),
         margin=dict(t=10, b=0, l=0, r=0),
-        showlegend=False,
+        hovermode="x unified",
     )
-    st.plotly_chart(fig_pkt, use_container_width=True)
+    st.plotly_chart(fig_pkt, **stretch_kwargs())
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # TAB 4 — INCIDENT MANAGEMENT (Remediation approvals + create incident)

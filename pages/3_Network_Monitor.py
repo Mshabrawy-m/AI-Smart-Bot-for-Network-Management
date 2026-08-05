@@ -2,7 +2,6 @@ import pandas as pd
 import streamlit as st
 import json
 import time
-from io import StringIO
 
 from modules.network_monitor import (
     real_ping, http_health_check, batch_ping, calculate_latency_stats,
@@ -14,7 +13,7 @@ from modules.network_monitor import (
     calculate_network_health_score, compare_hosts
 )
 from modules.settings import get_text, init_session_settings
-from modules.ui import inject_global_css
+from modules.ui import inject_global_css, stretch_kwargs
 
 st.set_page_config(page_title="Network Monitor", page_icon="🔍", layout="wide")
 inject_global_css()
@@ -82,7 +81,7 @@ with tab1:
 
     if st.session_state.ping_history:
         df = pd.DataFrame(st.session_state.ping_history)
-        st.dataframe(df, use_container_width=True, hide_index=True)
+        st.dataframe(df, hide_index=True, **stretch_kwargs())
         
         # Statistics
         latencies = [r.get("latency_ms") for r in st.session_state.ping_history if r.get("latency_ms") is not None]
@@ -117,7 +116,7 @@ with tab1:
         if len(st.session_state.ping_history) > 1:
             chart_fig = create_latency_chart(st.session_state.ping_history, host)
             if chart_fig is not None:
-                st.plotly_chart(chart_fig, use_container_width=True)
+                st.plotly_chart(chart_fig, **stretch_kwargs())
 
         latest = st.session_state.ping_history[0]
         status = latest.get("status", "unknown")
@@ -175,7 +174,7 @@ with tab2:
 
     if st.session_state.http_history:
         df = pd.DataFrame(st.session_state.http_history)
-        st.dataframe(df, use_container_width=True, hide_index=True)
+        st.dataframe(df, hide_index=True, **stretch_kwargs())
 
         latest = st.session_state.http_history[0]
         status = latest.get("status", "unknown")
@@ -328,7 +327,7 @@ with tab4:
             return ""
         
         styled_df = df.style.map(color_status, subset=["status"])
-        st.dataframe(styled_df, use_container_width=True, hide_index=True)
+        st.dataframe(styled_df, hide_index=True, **stretch_kwargs())
         
         # Security assessment
         security_assessment = assess_port_security(st.session_state.port_history)
@@ -540,12 +539,12 @@ with tab5:
         
         # Results display
         df = pd.DataFrame(results)
-        st.dataframe(df, use_container_width=True, hide_index=True)
+        st.dataframe(df, hide_index=True, **stretch_kwargs())
 
         # Show chart
         chart_fig = create_multi_host_chart(results)
         if chart_fig is not None:
-            st.plotly_chart(chart_fig, use_container_width=True)
+            st.plotly_chart(chart_fig, **stretch_kwargs())
 
         # Summary
         up_count = len([r for r in results if r.get("status") == "up"])
@@ -631,7 +630,7 @@ with tab6:
         for trace in st.session_state.traceroute_history:
             with st.expander(f"Traceroute to {trace['host']}", expanded=True):
                 hops_df = pd.DataFrame(trace['hops'])
-                st.dataframe(hops_df, use_container_width=True, hide_index=True)
+                st.dataframe(hops_df, hide_index=True, **stretch_kwargs())
     else:
         st.info("No traceroute results yet. Enter a host to trace.")
 
@@ -787,7 +786,7 @@ with tab7:
         if batch_comparison.get('latency_ranking'):
             st.markdown("**Latency Ranking:**")
             ranking_df = pd.DataFrame(batch_comparison['latency_ranking'])
-            st.dataframe(ranking_df, use_container_width=True, hide_index=True)
+            st.dataframe(ranking_df, hide_index=True, **stretch_kwargs())
     
     # All Recommendations Summary
     if network_health['all_recommendations']:
@@ -823,5 +822,4 @@ with tab7:
                 mime="application/json"
             )
     with col_export2:
-        if st.button("Generate Report", key="generate_report"):
-            st.info("Report generation feature - would integrate with reports module")
+        pass

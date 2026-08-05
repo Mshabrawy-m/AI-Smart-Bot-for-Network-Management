@@ -4,9 +4,15 @@ from __future__ import annotations
 
 import time
 
-from modules.knowledge_base import KnowledgeBase
+try:
+    from modules.knowledge_base import KnowledgeBase
+except (ImportError, KeyError):
+    KnowledgeBase = None  # type: ignore[misc,assignment]
 from modules.llm_client import get_llm_response
-from modules.storage import save_evaluation_event
+try:
+    from modules.storage import save_evaluation_event
+except (ImportError, KeyError):
+    def save_evaluation_event(*_a, **_kw): pass  # type: ignore[misc]
 
 SYSTEM_PROMPT = (
     "You are a network operations assistant for administrators. "

@@ -11,7 +11,10 @@ import streamlit as st
 from modules.alerts import generate_alerts
 from modules.anomaly_detector import AnomalyDetector
 from modules.data_sources import get_data_source
-from modules.knowledge_base import KnowledgeBase
+try:
+    from modules.knowledge_base import KnowledgeBase
+except (ImportError, KeyError):
+    KnowledgeBase = None  # type: ignore[misc,assignment]
 from modules.llm_client import _get_secret, LLMConfigurationError
 from modules.network_monitor import real_ping
 

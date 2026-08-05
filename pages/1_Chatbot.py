@@ -3,10 +3,19 @@ import streamlit as st
 
 from modules.agent import agent_answer
 from modules.chatbot import answer_question, answer_question_stream
-from modules.knowledge_base import load_knowledge_base
+try:
+    from modules.knowledge_base import load_knowledge_base
+except (ImportError, KeyError):
+    def load_knowledge_base(*_a, **_kw): return None  # type: ignore[misc]
 from modules.llm_client import LLMConfigurationError
 from modules.settings import get_text, init_session_settings
-from modules.storage import save_chat_message, get_history, save_evaluation_event, clear_chat_history
+try:
+    from modules.storage import save_chat_message, get_history, save_evaluation_event, clear_chat_history
+except (ImportError, KeyError):
+    def save_chat_message(*_a, **_kw): pass  # type: ignore[misc]
+    def get_history(*_a, **_kw): return {"chat": []}  # type: ignore[misc]
+    def save_evaluation_event(*_a, **_kw): pass  # type: ignore[misc]
+    def clear_chat_history(): pass  # type: ignore[misc]
 from modules.ui import inject_global_css
 
 st.set_page_config(page_title="Chatbot", page_icon="💬", layout="wide")
