@@ -447,8 +447,6 @@ with tab_predict:
     for metric, (fc, unit) in forecasts.items():
         will_exceed = fc.get("will_exceed_threshold", False)
         pred = fc.get("predicted_value")
-        lo   = fc.get("lower_bound")
-        hi   = fc.get("upper_bound")
         err  = fc.get("error")
         label = metric.replace("_", " ").title()
 
@@ -456,18 +454,17 @@ with tab_predict:
             st.warning(f"**{label}** — forecast unavailable: {err or 'insufficient data'}")
             continue
 
-        ci_str = f"  95% CI [{lo:.1f}–{hi:.1f}]{unit}" if lo is not None and hi is not None else ""
         method = fc.get("method_used", "")
 
         if will_exceed:
             st.error(
                 f"⚠ **{label}**: predicted **{pred:.1f}{unit}** in {horizon} min "
-                f"will EXCEED threshold ({fc['threshold']}{unit}){ci_str}  ·  method: {method}"
+                f"will EXCEED threshold ({fc['threshold']}{unit})  ·  method: {method}"
             )
         else:
             st.success(
                 f"✓ **{label}**: predicted **{pred:.1f}{unit}** in {horizon} min "
-                f"— within threshold ({fc['threshold']}{unit}){ci_str}  ·  method: {method}"
+                f"— within threshold ({fc['threshold']}{unit})  ·  method: {method}"
             )
 
     st.markdown('<hr class="section-rule">', unsafe_allow_html=True)

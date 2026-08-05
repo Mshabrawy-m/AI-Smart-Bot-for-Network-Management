@@ -403,8 +403,6 @@ with tab_traffic:
     fc1, fc2, fc3 = st.columns(3)
     def _fc_metric(col, label, forecast_dict, unit="", invert=False):
         v = forecast_dict.get("predicted_value")
-        lo = forecast_dict.get("lower_bound")
-        hi = forecast_dict.get("upper_bound")
         err = forecast_dict.get("error")
         if err or v is None:
             col.metric(f"30-min forecast — {label}", "n/a", help=err or "insufficient data")
@@ -412,8 +410,6 @@ with tab_traffic:
             col.metric(
                 f"30-min forecast — {label}",
                 f"{v:.1f}{unit}",
-                delta=f"±{(hi - lo) / 2:.1f}{unit} CI",
-                delta_color="off",
             )
 
     _fc_metric(fc1, "Bandwidth",   fc_bw,  " Mbps")
@@ -421,7 +417,7 @@ with tab_traffic:
     _fc_metric(fc3, "Packet Loss", fc_pkt, "%")
 
     method_used = fc_bw.get("method_used", "rolling")
-    st.caption(f"Forecast method: {method_used} · {fc_bw.get('data_points_used', 0)} data points · 95% CI shown")
+    st.caption(f"Forecast method: {method_used} · {fc_bw.get('data_points_used', 0)} data points")
 
     st.markdown('<hr class="section-rule">', unsafe_allow_html=True)
 
@@ -454,20 +450,10 @@ with tab_traffic:
         opacity=0.7,
     ))
 
-    # Forecast confidence band + point
+    # Forecast point marker
     if fc_bw.get("predicted_value") is not None:
         last_ts = tdf["timestamp"].max()
         fut_ts  = last_ts + pd.Timedelta(minutes=30)
-        # Confidence band (shaded region)
-        fig_traffic.add_trace(go.Scatter(
-            x=[last_ts, fut_ts, fut_ts, last_ts],
-            y=[fc_bw["lower_bound"], fc_bw["lower_bound"],
-               fc_bw["upper_bound"], fc_bw["upper_bound"]],
-            fill="toself", fillcolor="rgba(245,158,11,0.12)",
-            line=dict(color="rgba(0,0,0,0)"),
-            name="BW 95% CI band",
-            showlegend=True, hoverinfo="skip",
-        ))
         # Forecast diamond marker
         fig_traffic.add_trace(go.Scatter(
             x=[fut_ts], y=[fc_bw["predicted_value"]],
