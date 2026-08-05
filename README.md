@@ -1,6 +1,6 @@
 # AI Smart Bot for Network Management System
 
-> **Graduation Project** — An AI-powered network operations dashboard that monitors infrastructure in real time, detects anomalies with machine learning, forecasts capacity, and diagnoses faults in natural language via LLM APIs (Groq + Gemini).
+> **Graduation Project** — An AI-powered NOC assistant that monitors infrastructure in real time, detects anomalies with machine learning, forecasts capacity, and diagnoses faults in plain language via LLM APIs (Groq + Gemini).
 
 **Live Demo:** [ai-smart-bot-for-network-management.streamlit.app](https://ai-smart-bot-for-network-management.streamlit.app) · **Repository:** [@Mshabrawy-m](https://github.com/Mshabrawy-m/AI-Smart-Bot-for-Network-Management)
 
@@ -15,12 +15,14 @@
 [![Google Gemini](https://img.shields.io/badge/Gemini-4285F4?logo=google&logoColor=white)](https://ai.google.dev/)
 [![Live Demo](https://static.streamlit.io/badges/streamlit_badge_black.svg)](https://ai-smart-bot-for-network-management.streamlit.app)
 [![License: Institutional](https://img.shields.io/badge/License-Institutional-lightgrey)](https://github.com/Mshabrawy-m/AI-Smart-Bot-for-Network-Management)
+[![Last Commit](https://img.shields.io/github/last-commit/Mshabrawy-m/AI-Smart-Bot-for-Network-Management)](https://github.com/Mshabrawy-m/AI-Smart-Bot-for-Network-Management/commits)
 
 ---
 
 ## Table of Contents
 
 - [Overview](#overview)
+- [Why This Project](#why-this-project)
 - [Features](#features)
 - [Architecture](#architecture)
   - [Alert → Explanation flow](#alert--explanation-flow)
@@ -42,18 +44,33 @@
 - [Testing](#testing)
 - [Development Scripts](#development-scripts)
 - [Deploy to Streamlit Community Cloud](#deploy-to-streamlit-community-cloud)
+- [Roadmap](#roadmap)
 - [Limitations](#limitations)
 - [Troubleshooting](#troubleshooting)
+- [Contributing](#contributing)
 - [References](#references)
+- [Acknowledgments](#acknowledgments)
 - [License](#license)
 
 ---
 
 ## Overview
 
-**AI Smart Bot for Network Management** is a single-dashboard, LLM-first network operations center (NOC) assistant. It combines **real-time monitoring** (ICMP, HTTP, DNS, port scan, traceroute), **machine-learning anomaly detection** (a Random Forest + Gradient Boosting ensemble), **capacity forecasting** (Holt-Winters / linear / rolling), a **retrieval-augmented chatbot** for networking Q&A, and an **agent mode** that calls live tools to answer with real data — then explains alerts and guides remediation.
+**AI Smart Bot for Network Management** is a single-dashboard, LLM-first network operations center (NOC) assistant. It unifies:
 
-It runs locally on `streamlit run app.py` (Python 3.12) or on **Streamlit Community Cloud** with just an API key pair.
+- **Real-time monitoring** — ICMP, HTTP, DNS, port scanning, and traceroute
+- **ML anomaly detection** — a Random Forest + Gradient Boosting ensemble
+- **Capacity forecasting** — Holt-Winters, linear regression, and rolling-average methods, auto-selected per metric
+- **Retrieval-augmented chatbot** — grounded networking Q&A
+- **Agent mode** — an LLM that calls live tools to answer with real data, then explains alerts and proposes remediation
+
+It runs locally with `streamlit run app.py` (Python 3.12) or deploys to **Streamlit Community Cloud** with nothing more than an API key pair.
+
+---
+
+## Why This Project
+
+Most student NOC dashboards stop at charts. This one closes the loop: it *explains* what an alert means in plain language, cites the relevant networking concept from its own knowledge base, and hands the operator vendor-ready commands — while keeping a human in the loop for anything that actually touches the network. The graduation goal was to demonstrate that LLM tool-calling, classical ML, and a monitoring stack can work together as one coherent product rather than three separate demos.
 
 ---
 
@@ -230,9 +247,9 @@ AI Smart Bot for Network Management System
 
 ### Prerequisites
 
-- **Python 3.12** — required (Python 3.14 has import-compatibility issues, see `modules/__init__.py`).
+- **Python 3.12** — required (Python 3.14 has import-compatibility issues, see `modules/__init__.py`)
 - **Groq API key** (free) — [console.groq.com](https://console.groq.com)
-- *(Optional)* **Gemini API key** — [aistudio.google.com](https://aistudio.google.com) (used as automatic fallback)
+- *(Optional)* **Gemini API key** — [aistudio.google.com](https://aistudio.google.com), used as automatic fallback
 
 ### Install & Run
 
@@ -289,40 +306,41 @@ LLM_PROVIDER = "groq"                     # "groq" (primary) or "gemini"
 
 ### Anomaly Detection (`modules/anomaly_detector.py`)
 
-- **Algorithm:** Supervised ensemble — RandomForest (300 trees) + GradientBoosting (300 trees) with soft voting.
+- **Algorithm:** Supervised ensemble — RandomForest (300 trees) + GradientBoosting (300 trees) with soft voting
 - **Auto-labeling:** Domain rules generate training labels without manual annotation:
   - Contextual spikes (> k × rolling std)
   - Global IQR outlier gates
   - Sudden change detection
   - Hard thresholds per metric (packet_loss > 3%, latency > 150 ms, CPU > 90%)
-- **Features:** Rolling mean / std / z-score (24-period window), rate-of-change, time features (hour, day_of_week, business_hour, peak_hour).
-- **Decision:** Score threshold 0.65 with a Z-score safety gate (4.0σ) for extreme outliers.
-- **Output:** Anomaly score (0–1) + per-feature contributions.
+- **Features:** Rolling mean / std / z-score (24-period window), rate-of-change, time features (hour, day_of_week, business_hour, peak_hour)
+- **Decision:** Score threshold 0.65 with a Z-score safety gate (4.0σ) for extreme outliers
+- **Output:** Anomaly score (0–1) + per-feature contributions
 
 ### Forecasting (`modules/forecasting.py`)
 
-- **Three methods** auto-selected by data characteristics:
-  - **Exponential Smoothing** (Holt-Winters with damped trend) — strong trends
-  - **Linear Regression** — moderate trends
-  - **Rolling Average** — high variance or insufficient data
-- **Output:** Predicted value + 95% confidence interval.
-- **Use:** The Dashboard warns when a forecast crosses a capacity threshold within the 30-min horizon.
+Three methods are auto-selected based on data characteristics:
+
+- **Exponential Smoothing** (Holt-Winters, damped trend) — for strong trends
+- **Linear Regression** — for moderate trends
+- **Rolling Average** — for high variance or insufficient data
+
+Output is a predicted value with a 95% confidence interval. The Dashboard warns when a forecast crosses a capacity threshold within the 30-minute horizon.
 
 ### Knowledge Base / RAG (`modules/knowledge_base.py`)
 
-- **Content:** 40 networking entries covering OSI model, TCP/IP, DNS, DHCP, VLAN, routing, switching, firewalls, VPN, SNMP, BGP, OSPF, load balancing, and more.
-- **Indexing:** TF-IDF vectorization over `topic + keywords + answer`.
-- **Retrieval:** Cosine similarity with an LRU cache (128 entries).
+- **Content:** 40 networking entries covering OSI model, TCP/IP, DNS, DHCP, VLAN, routing, switching, firewalls, VPN, SNMP, BGP, OSPF, load balancing, and more
+- **Indexing:** TF-IDF vectorization over `topic + keywords + answer`
+- **Retrieval:** Cosine similarity with an LRU cache (128 entries)
 
 ---
 
 ## Results
 
-All numbers are produced by the evaluation harness in `dev/eval_accuracy.py` on `data/real_network_traffic.csv` (8,640 rows, 5-minute intervals).
+All numbers come from the evaluation harness in `dev/eval_accuracy.py`, run against `data/real_network_traffic.csv` (8,640 rows, 5-minute intervals).
 
 ### Classification (anomaly detection)
 
-Time-aware RF + GB ensemble, 80/20 split (6,287 normal / 625 annotated anomalies in training, 29 engineered features). Ground truth = the same domain rules used for auto-labeling; metrics computed on the held-out 20% test set.
+Time-aware RF + GB ensemble, 80/20 split (6,287 normal / 625 annotated anomalies in training, 29 engineered features). Ground truth uses the same domain rules used for auto-labeling; metrics are computed on the held-out 20% test set.
 
 | Metric | Value |
 |---|---|
@@ -355,9 +373,9 @@ Walk-forward evaluation, 30-minute horizon, 354 windows. Method is auto-selected
 
 Operated from the **AI Ops** page, combining three modules:
 
-- **`diagnostics_bridge.py`** — on an alert, retrieves KB context, calls the LLM, and returns a cause + numbered, vendor-ready steps.
-- **`ai_ops.py`** — builds structured troubleshooting plans (`build_troubleshooting_plan`), performs keyword-based log root-cause analysis (`analyze_logs`), generates predictive risk signals (`build_predictive_signal`), and assembles plain-text incident reports (`build_incident_report`).
-- **`remediation.py`** — a human-in-the-loop incident state machine: **create → diagnose → suggest → approve/reject**, with every action persisted to `network_bot.db`.
+- **`diagnostics_bridge.py`** — on an alert, retrieves KB context, calls the LLM, and returns a cause + numbered, vendor-ready steps
+- **`ai_ops.py`** — builds structured troubleshooting plans (`build_troubleshooting_plan`), performs keyword-based log root-cause analysis (`analyze_logs`), generates predictive risk signals (`build_predictive_signal`), and assembles plain-text incident reports (`build_incident_report`)
+- **`remediation.py`** — a human-in-the-loop incident state machine: **create → diagnose → suggest → approve/reject**, with every action persisted to `network_bot.db`
 
 ---
 
@@ -389,12 +407,12 @@ Tests cover: anomaly-detection outlier accuracy, alert explanation with a mocked
 
 | Script | Purpose |
 |--------|---------|
-| `dev/eval_accuracy.py` | Full accuracy evaluation — anomaly classification + walk-forward forecasting metrics. |
-| `dev/bench_models.py` | Anomaly-detection model comparison (RF / GB / Isolation Forest baselines). |
-| `dev/bench_deep.py` | Deep-learning baseline benchmarking. |
-| `dev/tune_threshold.py` | Calibrate the 0.65 decision threshold / Z-score gate. |
-| `dev/feature_performance.py` | Knowledge-base retrieval hit-rate and alert latency. |
-| `dev/run_sanity_checks.py` | Fast smoke tests for core modules. |
+| `dev/eval_accuracy.py` | Full accuracy evaluation — anomaly classification + walk-forward forecasting metrics |
+| `dev/bench_models.py` | Anomaly-detection model comparison (RF / GB / Isolation Forest baselines) |
+| `dev/bench_deep.py` | Deep-learning baseline benchmarking |
+| `dev/tune_threshold.py` | Calibrate the 0.65 decision threshold / Z-score gate |
+| `dev/feature_performance.py` | Knowledge-base retrieval hit-rate and alert latency |
+| `dev/run_sanity_checks.py` | Fast smoke tests for core modules |
 
 ---
 
@@ -409,6 +427,19 @@ Tests cover: anomaly-detection outlier accuracy, alert explanation with a mocked
 ### Deployment limitations
 
 Streamlit Cloud **cannot reach private LAN addresses** (`192.168.x.x`, `10.x.x.x`). Live mode probes public hosts (Google DNS, Cloudflare) but not internal routers. For real LAN monitoring, deploy on-premises or via a VPN. **Simulated mode** works identically everywhere.
+
+---
+
+## Roadmap
+
+Ideas for continuing this project past the graduation milestone:
+
+- [ ] Wire `pysnmp` into the stubbed SNMP extension point for real polling
+- [ ] Replace TF-IDF retrieval with an embedding-based vector store for semantic search
+- [ ] Add authentication and per-user role scoping for the remediation approval workflow
+- [ ] Support additional vendors beyond Cisco/MikroTik in the diagnostics bridge
+- [ ] Package the anomaly detector as a swappable model (add LSTM / Isolation Forest as alternatives)
+- [ ] Add a local/self-hosted LLM option for offline or air-gapped deployments
 
 ---
 
@@ -435,6 +466,17 @@ Streamlit Cloud **cannot reach private LAN addresses** (`192.168.x.x`, `10.x.x.x
 | Live ping shows all hosts down | Raw ICMP needs admin; the app falls back to TCP probes on ports 443/80. |
 | App fails to start | Confirm `python --version` is 3.12; reinstall with `python -m venv .venv && pip install -r requirements.txt`. |
 | Anomaly detector "not initialized" | It auto-trains on the first device query from 24h of history — wait one cycle or check the CSV loads. |
+
+---
+
+## Contributing
+
+This started as a graduation project, but issues and pull requests are welcome:
+
+1. Fork the repo and create a feature branch (`git checkout -b feature/your-idea`)
+2. Run `pytest tests/test_ai_workflows.py -v` before opening a PR
+3. Keep new modules consistent with the existing pattern: one responsibility per file under `modules/`, with a matching page under `pages/` if it needs a UI
+4. Open a PR describing the change and, where relevant, before/after screenshots
 
 ---
 
@@ -529,6 +571,12 @@ Streamlit Cloud **cannot reach private LAN addresses** (`192.168.x.x`, `10.x.x.x
 | # | Reference |
 |---|----------|
 | [40] | *AI Smart Bot for Network Management System* (graduation project, 2026). GitHub. [github.com/Mshabrawy-m/AI-Smart-Bot-for-Network-Management](https://github.com/Mshabrawy-m/AI-Smart-Bot-for-Network-Management) |
+
+---
+
+## Acknowledgments
+
+Built as a graduation project combining coursework in networking, machine learning, and applied LLM engineering. Thanks to the maintainers of the open-source libraries listed in [Tech Stack](#tech-stack), whose work made a single-developer NOC assistant feasible in a semester timeline.
 
 ---
 
