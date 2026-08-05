@@ -60,7 +60,7 @@
 
 - **Real-time monitoring** — ICMP, HTTP, DNS, port scanning, and traceroute
 - **ML anomaly detection** — a Random Forest + Gradient Boosting ensemble
-- **Capacity forecasting** — validation-driven auto-selection over persistence, rolling, EMA, linear, and daily-seasonal candidates, with conformal confidence intervals
+- **Capacity forecasting** — validation-driven auto-selection over persistence, rolling, EMA, linear, and daily-seasonal candidates
 - **Retrieval-augmented chatbot** — grounded networking Q&A
 - **Agent mode** — an LLM that calls live tools to answer with real data, then explains alerts and proposes remediation
 
@@ -79,7 +79,7 @@ Most student NOC dashboards stop at charts. This one closes the loop: it *explai
 | # | Feature | What it does |
 |---|---------|--------------|
 | 1 | **AI Chatbot** | Two modes — RAG-only (fast, KB-grounded) and **Agent** (function-calling over live data). Ask networking questions or paste diagnostics for step-by-step interpretation. |
-| 2 | **NOC Dashboard** | Device KPIs, threshold alerts with AI explanations, 24h traffic forecasting with confidence intervals, incident management with approval workflows. |
+| 2 | **NOC Dashboard** | Device KPIs, threshold alerts with AI explanations, 24h traffic forecasting, incident management with approval workflows. |
 | 3 | **Network Monitor** | Live ICMP ping, HTTP health checks, DNS lookups, TCP port scanning with security assessment, batch monitoring, traceroute, multi-host analysis dashboard. |
 | 4 | **AI Ops Suite** | ML anomaly detection (RF+GB ensemble), log root-cause analysis, capacity forecasting, human-in-the-loop remediation, AI-generated reports. |
 | 5 | **Diagnostics Bridge** | On alert, sends the fault to the LLM and returns a plain-language explanation with numbered, vendor-ready troubleshooting steps (Cisco / MikroTik). |
@@ -108,7 +108,7 @@ flowchart TB
         DI["diagnostics_bridge (alert → LLM → steps)"]
         AO["ai_ops (troubleshooting, log RCA, predictive)"]
         AD["anomaly_detector (RF+GB ensemble)"]
-        FC["forecasting (auto-selected classical models + conformal CI)"]
+        FC["forecasting (auto-selected classical models)"]
         AL["alerts (thresholds)"]
         RM["remediation (HITL state machine)"]
         RPT["reports"]
@@ -185,7 +185,7 @@ flowchart TB
 | **LLM (primary)** | Groq API (`openai/gpt-oss-120b`) via `groq` SDK |
 | **LLM (fallback)** | Google Gemini (`gemini-2.0-flash`) via `google-generativeai` |
 | **ML — Anomaly** | scikit-learn · RandomForest + GradientBoosting ensemble (300 trees each) with auto-labeling |
-| **ML — Forecast** | validation-driven auto-selection (persistence / rolling / EMA / linear / daily-seasonal) + conformal CI |
+| **ML — Forecast** | validation-driven auto-selection (persistence / rolling / EMA / linear / daily-seasonal) |
 | **ML — RAG** | TF-IDF vectorization + cosine similarity over a local JSON knowledge base |
 | **Charts** | Plotly (`graph_objects`) — bar, line, radar, dual-axis with threshold overlays |
 | **Network** | `ping3` (ICMP) · `socket` (TCP fallback, DNS) · `requests` (HTTP) · `psutil` (host metrics) · `python-nmap` (port scan) |
@@ -220,7 +220,7 @@ AI Smart Bot for Network Management System
 │   ├── agent.py                    # Agentic chatbot with 5-tool function-calling
 │   ├── data_sources.py             # Live / real-CSV / simulated data adapters
 │   ├── diagnostics_bridge.py       # Alert → KB context → LLM explanation
-│   ├── forecasting.py              # Auto-selected classical forecasting + conformal CI (+ optional LSTM)
+│   ├── forecasting.py              # Auto-selected classical forecasting (+ optional LSTM)
 │   ├── knowledge_base.py           # TF-IDF search engine with LRU cache
 │   ├── llm_client.py               # Groq / Gemini wrapper with fallback
 │   ├── network_monitor.py          # ICMP, HTTP, DNS, port scanner, traceroute
@@ -303,7 +303,7 @@ LLM_PROVIDER = "groq"                     # "groq" (primary) or "gemini"
 |------|---------|
 | **Home** | Welcome, quick-start, system status snapshot, recent incidents. |
 | **Chatbot** | Ask networking questions. Toggle **RAG mode** (fast, KB-grounded) or **Agent mode** (live tool calling). |
-| **Dashboard** | Device KPIs, alert feed, ML-anomaly scores, 24h forecast with confidence bands, incident lifecycle. |
+| **Dashboard** | Device KPIs, alert feed, ML-anomaly scores, 24h forecast, incident lifecycle. |
 | **Network Monitor** | Run ping / HTTP / DNS / port-scan / traceroute on single or multiple hosts; view a multi-host analysis table. |
 | **AI Ops** | Fault diagnosis, anomaly detection scores, log root-cause analysis, capacity trends, and remediation with approval gates. |
 
@@ -335,10 +335,7 @@ This replaced the previous variance-heuristic single-method forecaster.
   `ema`, `linear`, `exponential` (Holt-Winters damped trend, explicit only),
   `seasonal_hour`, `seasonal_naive`, and `lstm` (Keras, trained in an isolated
   subprocess — opt-in, `use_deep_learning=True`).
-- **Confidence intervals:** conformal residual quantiles (asymmetric) floored
-  by the classical z·σ band, calibrated per metric from full-history step-ahead
-  residuals, so the stated 95% coverage is honest.
-- **Output:** predicted value + lower/upper bound + method metadata. The
+- **Output:** predicted value + method metadata. The
   Dashboard warns when a forecast crosses a capacity threshold within the
   30-minute horizon.
 
