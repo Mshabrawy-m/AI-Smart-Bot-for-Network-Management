@@ -105,7 +105,7 @@ class LiveDataSource(DataSourceAdapter):
             host = entry["host"]
             dtype = entry.get("type", "unknown")
 
-            telemetry = ping_host_telemetry(host, count=3, timeout=1.0)
+            telemetry = ping_host_telemetry(host, count=2, timeout=0.7)
             return {
                 "name": name,
                 "host": host,
@@ -387,7 +387,7 @@ class RealDataSource(DataSourceAdapter):
         rows: List[Dict[str, Any]] = []
 
         def scan_host(entry: Dict[str, str]) -> Dict[str, Any]:
-            telemetry = ping_host_telemetry(entry["host"], count=3, timeout=1.0)
+            telemetry = ping_host_telemetry(entry["host"], count=2, timeout=0.7)
             return {
                 "name": entry["name"],
                 "host": entry["host"],
