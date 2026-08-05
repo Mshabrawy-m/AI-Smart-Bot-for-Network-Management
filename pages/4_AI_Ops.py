@@ -8,7 +8,7 @@ import streamlit as st
 
 from modules.alerts import generate_alerts
 from modules.anomaly_detector import AnomalyDetector, get_cached_detector
-from modules.data_sources import get_data_source, render_data_source_sidebar
+from modules.data_sources import get_data_source, get_cached_devices, render_data_source_sidebar
 from modules.diagnostics_bridge import explain_alert, alert_to_chat_prompt
 from modules.forecasting import NetworkForecaster, dataframe_signature
 try:
@@ -69,7 +69,8 @@ def get_kb():
 kb = get_kb()
 
 if "aiops_devices_df" not in st.session_state:
-    st.session_state.aiops_devices_df = data_source.get_devices()
+    st.session_state.aiops_devices_df = get_cached_devices(
+        st.session_state.get("data_source", "real"))
 if "aiops_traffic_df" not in st.session_state:
     st.session_state.aiops_traffic_df = data_source.get_traffic_history(hours=24)
 
@@ -81,6 +82,7 @@ actionable_alerts = [a for a in alerts if a["level"] != "ok"]
 if st.sidebar.button("↺ Refresh data", use_container_width=True):
     for k in ("aiops_devices_df", "aiops_traffic_df", "anomaly_detector"):
         st.session_state.pop(k, None)
+    get_cached_devices.clear()
     st.rerun()
 
 # ── Tabs ──────────────────────────────────────────────────────────────────────

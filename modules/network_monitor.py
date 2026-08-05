@@ -29,34 +29,46 @@ except ImportError:
     px = None
 
 
+def _connect_port(host: str, port: int, timeout: float) -> float:
+    """Return TCP connect latency (ms) to a port, or raise OSError."""
+    start = time.time()
+    with socket.create_connection((host, port), timeout=timeout):
+        return round((time.time() - start) * 1000, 2)
+
+
 def _tcp_probe_host(host: str, timeout: float = 2.0, ports: Optional[List[int]] = None) -> Dict[str, Any]:
-    """Fallback probe using TCP connect to common service ports."""
+    """Fallback probe using TCP connect to common service ports (probed in parallel)."""
     timestamp = datetime.now(timezone.utc).isoformat()
     if ports is None:
         ports = [443, 80]
 
-    for port in ports:
+    executor = ThreadPoolExecutor(max_workers=min(len(ports), 4))
+    try:
+        futs = {executor.submit(_connect_port, host, p, timeout): p for p in ports}
         try:
-            start = time.time()
-            with socket.create_connection((host, port), timeout=timeout):
-                latency_ms = round((time.time() - start) * 1000, 2)
-                return {
-                    "host": host,
-                    "status": "up",
-                    "latency_ms": latency_ms,
-                    "error": None,
-                    "probe_port": port,
-                    "timestamp": timestamp,
-                }
-        except OSError as exc:
-            last_error = exc
-            continue
+            for fut in as_completed(futs, timeout=timeout + 1.0):
+                try:
+                    latency_ms = fut.result()
+                    return {
+                        "host": host,
+                        "status": "up",
+                        "latency_ms": latency_ms,
+                        "error": None,
+                        "probe_port": futs[fut],
+                        "timestamp": timestamp,
+                    }
+                except OSError:
+                    continue
+        except TimeoutError:
+            pass
+    finally:
+        executor.shutdown(wait=False)
 
     return {
         "host": host,
         "status": "down",
         "latency_ms": None,
-        "error": f"TCP probe failed: {last_error}",
+        "error": "TCP probe failed: all service ports unreachable",
         "probe_port": None,
         "timestamp": timestamp,
     }

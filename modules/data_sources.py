@@ -466,6 +466,18 @@ def get_cached_host_metrics(mode: str) -> dict:
     return build_data_source(mode).get_host_metrics()
 
 
+@st.cache_data(ttl=30, show_spinner=False)
+def get_cached_devices(mode: str) -> pd.DataFrame:
+    """Device status/latency scan, refreshed at most every 30 seconds per mode.
+
+    Live and Real modes ping up to 8 configured hosts concurrently; when some
+    hosts are unreachable the scan is bounded by the per-ping timeout. Caching
+    the result amortizes that cost across reruns, page visits, and quick
+    data-mode switches instead of re-probing on every fresh load.
+    """
+    return build_data_source(mode).get_devices()
+
+
 def set_data_source(source: str) -> None:
     """Set the active data source."""
     st.session_state["data_source"] = source

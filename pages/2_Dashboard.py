@@ -10,7 +10,7 @@ import streamlit as st
 from modules.alerts import generate_alerts, alert_summary
 from modules.diagnostics_bridge import explain_alert
 from modules.llm_client import LLMConfigurationError
-from modules.data_sources import get_data_source, get_cached_host_metrics, render_data_source_sidebar
+from modules.data_sources import get_data_source, get_cached_host_metrics, get_cached_devices, render_data_source_sidebar
 from modules.forecasting import NetworkForecaster, dataframe_signature
 from modules.settings import get_text, init_session_settings
 try:
@@ -72,6 +72,7 @@ with st.sidebar:
         for key in ("devices_df", "traffic_df", "alert_explanations",
                     "forecast_cache", "forecast_sig"):
             st.session_state.pop(key, None)
+        get_cached_devices.clear()
         st.rerun()
 
     st.divider()
@@ -82,7 +83,8 @@ with st.sidebar:
 data_source = get_data_source()
 
 if "devices_df" not in st.session_state:
-    st.session_state.devices_df = data_source.get_devices()
+    st.session_state.devices_df = get_cached_devices(
+        st.session_state.get("data_source", "real"))
 if "traffic_df" not in st.session_state:
     st.session_state.traffic_df = data_source.get_traffic_history(hours=24)
 if "alert_explanations" not in st.session_state:

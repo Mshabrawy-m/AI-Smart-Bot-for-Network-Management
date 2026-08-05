@@ -10,7 +10,7 @@ import streamlit as st
 
 from modules.alerts import generate_alerts
 from modules.anomaly_detector import get_cached_detector
-from modules.data_sources import get_data_source
+from modules.data_sources import get_data_source, get_cached_devices
 try:
     from modules.knowledge_base import KnowledgeBase
 except (ImportError, KeyError):
@@ -137,8 +137,8 @@ def _execute_tool(tool_name: str, arguments: dict[str, Any], kb: KnowledgeBase) 
 
         elif tool_name == "check_device_status":
             device_name = arguments.get("device_name", "")
-            data_source = get_data_source()
-            devices_df = data_source.get_devices()
+            devices_df = get_cached_devices(
+                st.session_state.get("data_source", "real"))
             
             # Case-insensitive partial match
             device_row = devices_df[
@@ -175,8 +175,8 @@ def _execute_tool(tool_name: str, arguments: dict[str, Any], kb: KnowledgeBase) 
                 return f"Ping to {host}: ERROR. {result.get('error', 'Unknown error')}"
 
         elif tool_name == "get_recent_alerts":
-            data_source = get_data_source()
-            devices_df = data_source.get_devices()
+            devices_df = get_cached_devices(
+                st.session_state.get("data_source", "real"))
             alerts = generate_alerts(devices_df)
             
             if not alerts or all(a.get("level") == "ok" for a in alerts):
@@ -216,8 +216,8 @@ def _execute_tool(tool_name: str, arguments: dict[str, Any], kb: KnowledgeBase) 
                 except Exception as e:
                     return f"Anomaly detector not trained and auto-training failed: {e}"
             
-            data_source = get_data_source()
-            devices_df = data_source.get_devices()
+            devices_df = get_cached_devices(
+                st.session_state.get("data_source", "real"))
             
             device_row = devices_df[
                 devices_df["name"].str.contains(device_name, case=False, na=False)
