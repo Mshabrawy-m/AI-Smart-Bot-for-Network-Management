@@ -414,13 +414,6 @@ Rolling-family models win ~71% of windows and seasonal (same-hour-of-day)
 averages ~28%, so the selector adapts per window instead of assuming one model
 fits all metrics.
 
-### Confidence-interval coverage
-
-Empirical 95% confidence-interval coverage under the same walk-forward protocol
-is 94.6% for bandwidth, 97.5% for latency, and 97.2% for packet loss — near the
-stated target on every metric, versus the previous forecaster's 88–98% spread
-with a fixed-width band.
-
 > **LSTM:** an optional Keras LSTM (trained in an isolated subprocess,
 > `use_deep_learning=True`) is available but requires TensorFlow/Keras, which
 > are not in the default runtime; it never beat the classical candidates on
