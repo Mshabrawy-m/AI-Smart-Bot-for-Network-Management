@@ -5,6 +5,16 @@ By loading each submodule via ``importlib.util.spec_from_file_location`` we
 bypass the broken ``_find_and_load`` path and place the module directly in
 ``sys.modules``.  Subsequent ``from modules.X import Y`` statements then hit
 the cache and never trigger the faulty finder.
+
+IMPORTANT: the list below MUST be topologically sorted — every dependency has
+to be pre-registered *before* the modules that import it. Otherwise a
+pre-load of a dependent triggers a normal ``from modules.X import Y`` mid-flight,
+which on Python 3.14 re-enters the broken finder. Its exception is swallowed by
+the ``except`` below, leaving a *partially-initialized* module cached in
+``sys.modules`` — e.g. ``modules.agent`` without ``agent_answer`` — which then
+surfaces as ``ImportError: cannot import name 'agent_answer'``. Loading
+``agent`` (and every other dependant) last guarantees all of its imports are
+already cached here.
 """
 
 import importlib
@@ -15,22 +25,31 @@ import sys
 _pkg_dir = os.path.dirname(os.path.abspath(__file__))
 _pkg_name = __name__  # "modules"
 
+# Topologically sorted: leaf modules (no internal deps) first, dependants last.
+# `agent` is intentionally last — it imports alerts, anomaly_detector,
+# data_sources, knowledge_base, llm_client and network_monitor. `ai_ops` and
+# `reports` are dependants of the data/monitoring layer too.
 _SUBMODULES = [
+    # Leaves — only external dependencies (pandas/numpy/sklearn/etc.)
     "settings",
-    "storage",
     "ui",
-    "llm_client",
-    "knowledge_base",
-    "chatbot",
-    "agent",
-    "alerts",
-    "diagnostics_bridge",
-    "data_sources",
+    "storage",
     "network_monitor",
+    "knowledge_base",
     "anomaly_detector",
+    "alerts",
     "forecasting",
-    "remediation",
-    "reports",
+    "ai_ops",
+    # Depend on the leaves above
+    "llm_client",          # -> settings
+    "data_sources",        # -> network_monitor
+    "chatbot",             # -> knowledge_base, llm_client, storage
+    "diagnostics_bridge",  # -> knowledge_base, llm_client, storage
+    "remediation",         # -> storage
+    "reports",             # -> data_sources, alerts, llm_client, remediation
+    # Must be LAST: imports several of the modules above
+    "agent",               # -> alerts, anomaly_detector, data_sources,
+                           #    knowledge_base, llm_client, network_monitor
 ]
 
 for _name in _SUBMODULES:
@@ -48,5 +67,7 @@ for _name in _SUBMODULES:
         sys.modules[_fqn] = _mod
         _spec.loader.exec_module(_mod)
     except Exception:
-        # If pre-loading fails, the normal import path will still be tried.
-        pass
+        # Never leave a partially-initialized module cached — remove it so the
+        # normal import path can retry (or surface a real error) instead of a
+        # confusing "cannot import name '<symbol>'" later.
+        sys.modules.pop(_fqn, None)
