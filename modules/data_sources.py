@@ -436,16 +436,34 @@ class RealDataSource(DataSourceAdapter):
             return {"cpu_percent": 0.0, "memory_percent": 0.0, "network_throughput_mbps": 0.0}
 
 
-def get_data_source() -> DataSourceAdapter:
-    """Get the active telemetry source selected for this session."""
-    init_session_settings_if_needed()
-    mode = st.session_state.get("data_source", "real")
+@st.cache_resource(show_spinner=False)
+def build_data_source(mode: str) -> DataSourceAdapter:
+    """Build the adapter for a mode, kept alive across reruns.
+
+    Caching the instance means the 30-day CSV is parsed only once per process
+    (RealDataSource caches ``self._df``) and LiveDataSource keeps its net-I/O
+    state, so repeated calls (e.g. ``get_host_metrics`` on every rerun) do not
+    re-read files or re-probe the network.
+    """
     if mode == "live":
         return LiveDataSource()
     elif mode == "real":
         return RealDataSource()
     else:
         return SimulatedDataSource()
+
+
+def get_data_source() -> DataSourceAdapter:
+    """Get the active telemetry source selected for this session."""
+    init_session_settings_if_needed()
+    mode = st.session_state.get("data_source", "real")
+    return build_data_source(mode)
+
+
+@st.cache_data(ttl=10, show_spinner=False)
+def get_cached_host_metrics(mode: str) -> dict:
+    """Host CPU/memory/network metrics, refreshed at most every 10 seconds."""
+    return build_data_source(mode).get_host_metrics()
 
 
 def set_data_source(source: str) -> None:

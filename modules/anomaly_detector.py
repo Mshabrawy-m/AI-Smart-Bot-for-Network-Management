@@ -356,3 +356,38 @@ def inject_synthetic_anomalies(
         labels[int(idx)] = 1
 
     return df, labels
+
+
+def get_cached_detector(
+    mode: str,
+    hours: int = 24,
+    contamination: float = 0.1,
+    n_neighbors: int = 30,
+    threshold: float = DECISION_THRESHOLD,
+    random_state: int = 42,
+) -> AnomalyDetector:
+    """Return a fitted detector, cached across reruns/sessions.
+
+    Training the RF + GB ensemble takes seconds; because the result depends
+    only on the data source and training parameters, it is cached so a page
+    visit or agent tool call reuses the already-fitted model instead of
+    re-training it.
+    """
+    from modules.data_sources import build_data_source
+
+    detector = AnomalyDetector(
+        contamination=contamination,
+        n_neighbors=n_neighbors,
+        threshold=threshold,
+        random_state=random_state,
+    )
+    history_df = build_data_source(mode).get_traffic_history(hours=hours)
+    detector.fit(history_df)
+    return detector
+
+
+try:
+    import streamlit as st
+    get_cached_detector = st.cache_resource(show_spinner=False)(get_cached_detector)
+except ImportError:  # pragma: no cover — streamlit always present in the app
+    pass

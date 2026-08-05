@@ -10,8 +10,8 @@ import streamlit as st
 from modules.alerts import generate_alerts, alert_summary
 from modules.diagnostics_bridge import explain_alert
 from modules.llm_client import LLMConfigurationError
-from modules.data_sources import get_data_source, render_data_source_sidebar
-from modules.forecasting import NetworkForecaster
+from modules.data_sources import get_data_source, get_cached_host_metrics, render_data_source_sidebar
+from modules.forecasting import NetworkForecaster, dataframe_signature
 from modules.settings import get_text, init_session_settings
 try:
     from modules.storage import save_alert, get_history, get_evaluation_metrics
@@ -69,7 +69,8 @@ with st.sidebar:
 
     st.divider()
     if st.button("↺  Refresh telemetry", use_container_width=True):
-        for key in ("devices_df", "traffic_df", "alert_explanations", "forecast_cache"):
+        for key in ("devices_df", "traffic_df", "alert_explanations",
+                    "forecast_cache", "forecast_sig"):
             st.session_state.pop(key, None)
         st.rerun()
 
@@ -181,7 +182,7 @@ with tab_overview:
     with right:
         st.markdown('<span class="kpi-label">Host Metrics (this machine)</span>', unsafe_allow_html=True)
         try:
-            host = data_source.get_host_metrics()
+            host = get_cached_host_metrics(st.session_state.get("data_source", "real"))
             hc1, hc2, hc3 = st.columns(3)
             hc1.metric("CPU", f"{host.get('cpu_percent', 0):.1f}%")
             hc2.metric("Memory", f"{host.get('memory_percent', 0):.1f}%")
@@ -394,11 +395,20 @@ with tab_devices:
 # TAB 3 — TRAFFIC & FORECAST
 # ═══════════════════════════════════════════════════════════════════════════════
 with tab_traffic:
-    # Forecasting inline KPIs
-    forecaster = NetworkForecaster(method="auto")
-    fc_bw  = forecaster.forecast_metric(traffic_df, "bandwidth_mbps",  horizon_minutes=30)
-    fc_lat = forecaster.forecast_metric(traffic_df, "latency_ms",      horizon_minutes=30)
-    fc_pkt = forecaster.forecast_metric(traffic_df, "packet_loss_pct", horizon_minutes=30)
+    # Forecasting inline KPIs — computed once per telemetry snapshot, then
+    # reused on every rerun (the data hasn't changed).
+    forecast_sig = dataframe_signature(traffic_df)
+    if st.session_state.get("forecast_sig") != forecast_sig:
+        forecaster = NetworkForecaster(method="auto")
+        st.session_state.forecast_sig = forecast_sig
+        st.session_state.forecast_cache = {
+            "bandwidth_mbps":  forecaster.forecast_metric(traffic_df, "bandwidth_mbps",  horizon_minutes=30),
+            "latency_ms":      forecaster.forecast_metric(traffic_df, "latency_ms",      horizon_minutes=30),
+            "packet_loss_pct": forecaster.forecast_metric(traffic_df, "packet_loss_pct", horizon_minutes=30),
+        }
+    fc_bw  = st.session_state.forecast_cache["bandwidth_mbps"]
+    fc_lat = st.session_state.forecast_cache["latency_ms"]
+    fc_pkt = st.session_state.forecast_cache["packet_loss_pct"]
 
     fc1, fc2, fc3 = st.columns(3)
     def _fc_metric(col, label, forecast_dict, unit="", invert=False):

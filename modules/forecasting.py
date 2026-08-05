@@ -59,6 +59,20 @@ _Z = {0.80: 1.2816, 0.85: 1.4400, 0.90: 1.6449, 0.95: 1.9599, 0.99: 2.5758}
 _CI_INFLATION = 1.4
 
 
+def dataframe_signature(df: pd.DataFrame) -> str:
+    """Cheap content hash used to memoize per-telemetry-snapshot results.
+
+    The signature is stable for the same rows, so expensive derived results
+    (forecasts, batch predictions) are computed once per snapshot instead of
+    on every Streamlit rerun.
+    """
+    try:
+        h = pd.util.hash_pandas_object(df, index=True).sum()
+    except Exception:
+        h = len(df)
+    return f"{len(df)}-{int(h)}"
+
+
 # ────────────────────────────────────────────────────────────────────────────
 # Candidate models
 # ────────────────────────────────────────────────────────────────────────────

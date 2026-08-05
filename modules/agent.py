@@ -9,7 +9,7 @@ from typing import Any
 import streamlit as st
 
 from modules.alerts import generate_alerts
-from modules.anomaly_detector import AnomalyDetector
+from modules.anomaly_detector import get_cached_detector
 from modules.data_sources import get_data_source
 try:
     from modules.knowledge_base import KnowledgeBase
@@ -192,18 +192,21 @@ def _execute_tool(tool_name: str, arguments: dict[str, Any], kb: KnowledgeBase) 
         elif tool_name == "get_anomaly_score":
             device_name = arguments.get("device_name", "")
             
-            # Check if anomaly detector is available in session state; if not, initialize and train it on historical traffic data.
+            # Use a cached (per-mode) fitted detector; trains only once per
+            # process instead of on every first tool call.
             if "anomaly_detector" not in st.session_state:
                 try:
-                    detector = AnomalyDetector()
-                    data_source = get_data_source()
-                    history_df = data_source.get_traffic_history(hours=24)
-                    detector.fit(history_df)
+                    detector = get_cached_detector(
+                        st.session_state.get("data_source", "real"),
+                        hours=24,
+                        contamination=0.05,
+                        n_neighbors=30,
+                    )
                     st.session_state.anomaly_detector = detector
                 except Exception as e:
                     return f"Anomaly detector not initialized and auto-training failed: {e}"
             
-            detector: AnomalyDetector = st.session_state.anomaly_detector
+            detector = st.session_state.anomaly_detector
             
             if not detector.is_fitted:
                 try:

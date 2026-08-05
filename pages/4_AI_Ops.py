@@ -7,10 +7,10 @@ import pandas as pd
 import streamlit as st
 
 from modules.alerts import generate_alerts
-from modules.anomaly_detector import AnomalyDetector, inject_synthetic_anomalies
+from modules.anomaly_detector import AnomalyDetector, get_cached_detector, inject_synthetic_anomalies
 from modules.data_sources import get_data_source, render_data_source_sidebar
 from modules.diagnostics_bridge import explain_alert, alert_to_chat_prompt
-from modules.forecasting import NetworkForecaster
+from modules.forecasting import NetworkForecaster, dataframe_signature
 try:
     from modules.knowledge_base import load_knowledge_base
 except (ImportError, KeyError):
@@ -190,6 +190,7 @@ with tab_anomaly:
     if st.button("Train / Retrain model", type="primary", key="train_anomaly"):
         with st.spinner("Training LOF model…"):
             try:
+                get_cached_detector.clear()
                 train_df = data_source.get_traffic_history(hours=train_hours)
                 detector = AnomalyDetector(
                     contamination=contamination,
@@ -197,6 +198,8 @@ with tab_anomaly:
                 )
                 detector.fit(train_df)
                 st.session_state.anomaly_detector = detector
+                st.session_state.pop("aiops_batch_result", None)
+                st.session_state.pop("aiops_traffic_sig", None)
                 st.success(
                     f"LOF model trained on {len(train_df)} data points · "
                     f"features: {', '.join(detector.feature_columns)}"
@@ -204,13 +207,17 @@ with tab_anomaly:
             except Exception as exc:
                 st.error(f"Training failed: {exc}")
 
-    # Auto-train if not fitted
+    # Load a cached (per-mode) trained detector — avoids re-training the
+    # RF + GB ensemble on every fresh session / page visit.
     if "anomaly_detector" not in st.session_state:
-        with st.spinner("Auto-training LOF anomaly detector on 24-hour history…"):
+        with st.spinner("Loading pre-trained anomaly detector…"):
             try:
-                detector = AnomalyDetector(contamination=0.1, random_state=42)
-                detector.fit(data_source.get_traffic_history(hours=24))
-                st.session_state.anomaly_detector = detector
+                st.session_state.anomaly_detector = get_cached_detector(
+                    st.session_state.get("data_source", "real"),
+                    hours=24,
+                    contamination=0.1,
+                    n_neighbors=30,
+                )
             except Exception:
                 pass
 
@@ -281,7 +288,12 @@ with tab_anomaly:
         # Batch predict on traffic history
         st.markdown('<span class="kpi-label">Anomaly scan on traffic history</span>', unsafe_allow_html=True)
         try:
-            batch_result_df = detector.predict_batch(traffic_df.copy())
+            traffic_sig = dataframe_signature(traffic_df)
+            if (st.session_state.get("aiops_traffic_sig") != traffic_sig
+                    or "aiops_batch_result" not in st.session_state):
+                st.session_state.aiops_traffic_sig = traffic_sig
+                st.session_state.aiops_batch_result = detector.predict_batch(traffic_df.copy())
+            batch_result_df = st.session_state.aiops_batch_result
             n_anomalies = int(batch_result_df["is_anomaly"].sum())
             pct = n_anomalies / max(len(batch_result_df), 1) * 100
             st.metric("Anomalous traffic points", f"{n_anomalies} / {len(batch_result_df)} ({pct:.1f}%)")
@@ -438,11 +450,17 @@ with tab_predict:
     bw_cap  = p2.number_input("Bandwidth capacity threshold (Mbps)", 50, 10000, 100, 10, key="pred_bw_cap")
     lat_cap = p3.number_input("Latency threshold (ms)", 20, 500, 100, 10, key="pred_lat_cap")
 
-    forecasts = {
-        "bandwidth_mbps":  (forecaster.check_capacity_threshold(traffic_df, "bandwidth_mbps",  bw_cap,  horizon), "Mbps"),
-        "latency_ms":      (forecaster.check_capacity_threshold(traffic_df, "latency_ms",      lat_cap, horizon), "ms"),
-        "packet_loss_pct": (forecaster.check_capacity_threshold(traffic_df, "packet_loss_pct", 2.0,     horizon), "%"),
-    }
+    # Forecasts are memoized per telemetry snapshot + user settings, so they
+    # are recomputed only when the data or the inputs change.
+    fc_sig = dataframe_signature(traffic_df)
+    fc_key = f"pred_fc_{fc_sig}_{horizon}_{bw_cap}_{lat_cap}"
+    if fc_key not in st.session_state:
+        st.session_state[fc_key] = {
+            "bandwidth_mbps":  (forecaster.check_capacity_threshold(traffic_df, "bandwidth_mbps",  bw_cap,  horizon), "Mbps"),
+            "latency_ms":      (forecaster.check_capacity_threshold(traffic_df, "latency_ms",      lat_cap, horizon), "ms"),
+            "packet_loss_pct": (forecaster.check_capacity_threshold(traffic_df, "packet_loss_pct", 2.0,     horizon), "%"),
+        }
+    forecasts = st.session_state[fc_key]
 
     for metric, (fc, unit) in forecasts.items():
         will_exceed = fc.get("will_exceed_threshold", False)
