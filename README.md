@@ -1,74 +1,156 @@
 # AI Smart Bot for Network Management System
 
-> **Graduation Project** — An AI-powered network operations dashboard that monitors infrastructure, detects anomalies with ML, and diagnoses faults using natural language via LLM APIs.
+> **Graduation Project** — An AI-powered network operations dashboard that monitors infrastructure in real time, detects anomalies with machine learning, forecasts capacity, and diagnoses faults in natural language via LLM APIs (Groq + Gemini).
 
-**Live Demo:** [ai-smart-bot-for-network-management.streamlit.app](https://ai-smart-bot-for-network-management.streamlit.app)
+**Live Demo:** [ai-smart-bot-for-network-management.streamlit.app](https://ai-smart-bot-for-network-management.streamlit.app) · **Repository:** [@Mshabrawy-m](https://github.com/Mshabrawy-m/AI-Smart-Bot-for-Network-Management)
+
+---
+
+## Badges
+
+[![Python 3.12](https://img.shields.io/badge/Python-3.12-blue?logo=python&logoColor=white)](https://www.python.org/)
+[![Streamlit 1.32+](https://img.shields.io/badge/Streamlit-1.32%2B-FF4B4B?logo=streamlit&logoColor=white)](https://streamlit.io/)
+[![scikit-learn](https://img.shields.io/badge/scikit--learn-1.4%2B-F7931E?logo=scikit-learn)](https://scikit-learn.org/)
+[![groq](https://img.shields.io/badge/groq-6A4598?logo=groq)](https://groq.com)
+[![Google Gemini](https://img.shields.io/badge/Gemini-4285F4?logo=google&logoColor=white)](https://ai.google.dev/)
+[![Live Demo](https://static.streamlit.io/badges/streamlit_badge_black.svg)](https://ai-smart-bot-for-network-management.streamlit.app)
+[![License: Institutional](https://img.shields.io/badge/License-Institutional-lightgrey)](https://github.com/Mshabrawy-m/AI-Smart-Bot-for-Network-Management)
+
+---
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Features](#features)
+- [Architecture](#architecture)
+  - [Alert → Explanation flow](#alert--explanation-flow)
+  - [Agent chatbot flow](#agent-chatbot-flow)
+- [Tech Stack](#tech-stack)
+- [Project Structure](#project-structure)
+- [Quick Start](#quick-start)
+- [Configuration (API keys & secrets)](#configuration-api-keys--secrets)
+- [Usage Guide](#usage-guide)
+- [Machine Learning](#machine-learning)
+  - [Anomaly Detection](#anomaly-detection)
+  - [Forecasting](#forecasting)
+  - [Knowledge Base / RAG](#knowledge-base--rag)
+- [Results](#results)
+  - [Classification (anomaly detection)](#classification-anomaly-detection)
+  - [Time series forecasting](#time-series-forecasting)
+- [Diagnostics & Remediation](#diagnostics--remediation)
+- [Evaluation & Logging](#evaluation--logging)
+- [Testing](#testing)
+- [Development Scripts](#development-scripts)
+- [Deploy to Streamlit Community Cloud](#deploy-to-streamlit-community-cloud)
+- [Limitations](#limitations)
+- [Troubleshooting](#troubleshooting)
+- [References](#references)
+- [License](#license)
+
+---
+
+## Overview
+
+**AI Smart Bot for Network Management** is a single-dashboard, LLM-first network operations center (NOC) assistant. It combines **real-time monitoring** (ICMP, HTTP, DNS, port scan, traceroute), **machine-learning anomaly detection** (a Random Forest + Gradient Boosting ensemble), **capacity forecasting** (Holt-Winters / linear / rolling), a **retrieval-augmented chatbot** for networking Q&A, and an **agent mode** that calls live tools to answer with real data — then explains alerts and guides remediation.
+
+It runs locally on `streamlit run app.py` (Python 3.12) or on **Streamlit Community Cloud** with just an API key pair.
 
 ---
 
 ## Features
 
-| Feature | Description |
-|---------|-------------|
-| **AI Chatbot** | Two modes: RAG-only (fast, KB-grounded) and Agent (tool-calling with live data). Ask networking questions or paste diagnostics for interpretation. |
-| **NOC Dashboard** | Real-time device metrics, threshold-based alerts with AI explanations, 24-hour traffic forecasting with confidence intervals, incident management with approval workflows. |
-| **Network Monitor** | Live ICMP ping, HTTP health checks, DNS lookups, port scanning with security assessment, batch monitoring, traceroute, and a multi-host analysis dashboard. |
-| **AI Ops Suite** | Fault diagnosis, ML anomaly detection (RF+GB ensemble), log root-cause analysis, capacity forecasting, human-in-the-loop remediation, AI-generated reports. |
-| **Diagnostics Bridge** | When a fault is detected (device down, high latency, packet loss spike), the alert is sent to the LLM, which returns a plain-language explanation with numbered troubleshooting steps — including Cisco/MikroTik commands. |
+| # | Feature | What it does |
+|---|---------|--------------|
+| 1 | **AI Chatbot** | Two modes — RAG-only (fast, KB-grounded) and **Agent** (function-calling over live data). Ask networking questions or paste diagnostics for step-by-step interpretation. |
+| 2 | **NOC Dashboard** | Device KPIs, threshold alerts with AI explanations, 24h traffic forecasting with confidence intervals, incident management with approval workflows. |
+| 3 | **Network Monitor** | Live ICMP ping, HTTP health checks, DNS lookups, TCP port scanning with security assessment, batch monitoring, traceroute, multi-host analysis dashboard. |
+| 4 | **AI Ops Suite** | ML anomaly detection (RF+GB ensemble), log root-cause analysis, capacity forecasting, human-in-the-loop remediation, AI-generated reports. |
+| 5 | **Diagnostics Bridge** | On alert, sends the fault to the LLM and returns a plain-language explanation with numbered, vendor-ready troubleshooting steps (Cisco / MikroTik). |
 
 ---
 
 ## Architecture
 
-```
-┌──────────────────────── Streamlit UI (4 pages) ────────────────────────┐
-│   Home  ·  Chatbot  ·  Dashboard  ·  Network Monitor  ·  AI Ops        │
-└──────────────────────────────┬─────────────────────────────────────────┘
-                               │
-        ┌──────────────────────┼──────────────────────┐
-        ▼                      ▼                      ▼
- ┌──────────────┐     ┌──────────────┐      ┌────────────────┐
- │ data_sources  │     │  llm_client  │      │ network_monitor│
- │ (live/real/   │     │(Groq/Gemini) │      │(ICMP/HTTP/DNS/ │
- │  simulated)   │     │              │      │ port scanning) │
- └──────┬───────┘     └──────┬───────┘      └───────┬────────┘
-        │                    │                       │
-        └────────────────────┼───────────────────────┘
-                             ▼
-              ┌──────────────────────────────┐
-              │       Core Modules           │
-              │  alerts · anomaly_detector   │
-              │  chatbot · agent · forecast  │
-              │  diagnostics_bridge          │
-              │  knowledge_base · remediation│
-              │  reports · storage · ui      │
-              └──────────────┬───────────────┘
-                             │
-                      ┌──────┴──────┐
-                      ▼             ▼
-                network_bot.db   session_state
-                (SQLite WAL)     (in-memory)
+```mermaid
+flowchart TB
+    subgraph UI["Streamlit UI (4 pages)"]
+        H["Home"]:::page
+        C["Chatbot"]:::page
+        D["Dashboard"]:::page
+        M["Network Monitor"]:::page
+        O["AI Ops"]:::page
+    end
+
+    subgraph Core["Core Modules"]
+        DS["data_sources<br/>(live / CSV / simulated)"]
+        LLM["llm_client<br/>(Groq + Gemini)"]
+        NM["network_monitor<br/>(ICMP/HTTP/DNS/port)"]
+        AG["agent<br/>(5-tool function calling)"]
+        CB["chatbot<br/>(RAG)"]
+        AD["anomaly_detector<br/>(RF+GB)"]
+        FC["forecasting<br/>(Holt-Winters)"]
+        KB["knowledge_base<br/>(TF-IDF)"]
+        DB["diagnostics_bridge"]
+        AO["ai_ops<br/>(troubleshooting plans)"]
+        RM["remediation<br/>(HITL state machine)"]
+        AL["alerts"]
+        ST["storage<br/>(SQLite)"]
+    end
+
+    UI -->|queries/telemetry| DS
+    UI -->|LLM calls| LLM
+    UI -->|network probes| NM
+    UI -->|agentic Q&A| AG
+    UI -->|RAG Q&A| CB
+    UI -->|anomaly scores| AD
+    UI -->|forecasts| FC
+    UI -->|explain alerts| DB
+    UI -->|ops plans| AO
+    UI -->|remediation| RM
+
+    DB --> KB
+    DB --> LLM
+    AG --> KB
+    AG --> LLM
+    CB --> KB
+    CB --> LLM
+    AL --> DS
+    AD --> DS
+    FC --> DS
+    AO --> AL
+    AO --> DS
+    RM --> AL
+    ST --> DB
+    ST --> AL
+    ST --> RM
+
+    classDef page fill:#0e3a5f,color:#fff,stroke:#1f75ad
+    classDef core fill:#1f2933,color:#fff,stroke:#475569
+    class H,C,D,M,O page
+    class DS,LLM,NM,AG,CB,AD,FC,KB,DB,AO,RM,AL,ST core
+
+    style UI fill:#0b1f33,stroke:#38bdf8,color:#fff
 ```
 
 ### Alert → Explanation flow
 
-1. `data_sources.py` collects device metrics (live ping + psutil, 30-day CSV, or simulated)
-2. `alerts.py` evaluates thresholds → alert objects (critical / warning / ok)
-3. User clicks **Explain** on an alert
-4. `diagnostics_bridge.py` searches the knowledge base → builds structured prompt → calls LLM
-5. Explanation (cause + numbered steps) is displayed inline
-6. Event is logged to SQLite with retrieval score and latency
+1. `data_sources.py` collects device telemetry (live ping + `psutil`, 30-day CSV, or simulated data).
+2. `alerts.py` evaluates thresholds → `critical` / `warning` / `ok` alert objects.
+3. User clicks **Explain** on an alert.
+4. `diagnostics_bridge.py` retrieves relevant KB context → builds a structured prompt → calls the LLM.
+5. A plain-language explanation (likely cause + numbered steps + Cisco/MikroTik commands) is displayed inline.
+6. The event (retrieval score, latency, provider) is persisted to `network_bot.db`.
 
 ### Agent chatbot flow
 
-1. User query → `agent.py` calls Groq with 5 tool definitions (function-calling)
-2. Model decides which tools to invoke (max 4 iterations):
+1. User query → `agent.py` calls Groq with 5 tool definitions (OpenAI-format function calling).
+2. The model decides which tools to invoke (max `MAX_TOOL_ITERATIONS = 4`):
    - `search_knowledge_base` — TF-IDF search over 40 networking entries
    - `check_device_status` — live device metrics
    - `run_ping` — real ICMP probe
    - `get_recent_alerts` — current threshold alerts
    - `get_anomaly_score` — RF+GB ensemble prediction
-3. Tool results are fed back as context → final answer with collapsible tool trace
+3. Tool results are fed back as context → the model produces a final answer, rendered with a collapsible tool trace.
 
 ---
 
@@ -81,136 +163,125 @@
 | **LLM (fallback)** | Google Gemini (`gemini-2.0-flash`) via `google-generativeai` |
 | **ML — Anomaly** | scikit-learn · RandomForest + GradientBoosting ensemble (300 trees each) with auto-labeling |
 | **ML — Forecast** | statsmodels (Holt-Winters) · scikit-learn (Linear Regression) · rolling average — auto-selected |
-| **ML — RAG** | TF-IDF vectorization + cosine similarity over local JSON knowledge base |
-| **Charts** | Plotly (graph_objects) — bar, line, radar, dual-axis with threshold overlays |
-| **Network** | ping3 (ICMP) · socket (TCP fallback, DNS) · requests (HTTP) · psutil (host metrics) |
+| **ML — RAG** | TF-IDF vectorization + cosine similarity over a local JSON knowledge base |
+| **Charts** | Plotly (`graph_objects`) — bar, line, radar, dual-axis with threshold overlays |
+| **Network** | `ping3` (ICMP) · `socket` (TCP fallback, DNS) · `requests` (HTTP) · `psutil` (host metrics) · `python-nmap` (port scan) |
 | **Storage** | SQLite (WAL mode) — chat history, alerts, incidents, evaluation metrics |
-| **i18n** | English + Arabic (RTL) via settings module |
+| **i18n** | English + Arabic (RTL) via `modules/settings.py` |
+| **Runtime** | `runtime.txt` pins `python-3.12` (`.streamlit/config.toml` enforces a dark NOC theme) |
 
 ---
 
 ## Project Structure
 
 ```
-├── app.py                            # Home page, sidebar, navigation
-├── requirements.txt                  # Python dependencies
-├── runtime.txt                       # Python 3.12 version spec
-├── network_bot.db                    # SQLite database (auto-created)
-│
+AI Smart Bot for Network Management System
+├── app.py                          # Home page, sidebar, theme, navigation
+├── requirements.txt                # Python dependencies
+├── runtime.txt                     # python-3.12
+├── README.md
+├── .gitignore
 ├── .streamlit/
-│   ├── config.toml                   # Dark NOC theme
-│   ├── secrets.toml                  # API keys (git-ignored, never commit)
-│   └── secrets.toml.example          # Template — safe to commit
-│
+│   ├── config.toml                 # Dark NOC theme + i18n config
+│   ├── secrets.toml                # API keys (GIT-IGNORED — never commit)
+│   └── secrets.toml.example        # Template — safe to commit
 ├── data/
-│   ├── knowledge_base.json           # 40 networking Q&A entries for RAG
-│   └── real_network_traffic.csv      # 30-day traffic data (5-min intervals)
-│
-├── modules/
-│   ├── __init__.py                   # Python 3.14 import workaround
-│   ├── llm_client.py                 # Groq / Gemini wrapper with fallback
-│   ├── knowledge_base.py             # TF-IDF search engine with LRU cache
-│   ├── chatbot.py                    # RAG orchestration: retrieve → prompt → LLM
-│   ├── agent.py                      # Agentic chatbot with 5-tool function-calling
-│   ├── data_sources.py               # Live / Real CSV / Simulated data adapters
-│   ├── network_monitor.py            # ICMP ping, HTTP, DNS, port scanner, traceroute
-│   ├── alerts.py                     # Threshold-based alert engine
-│   ├── diagnostics_bridge.py         # Alert → KB context → LLM explanation
-│   ├── anomaly_detector.py           # RF+GB ensemble with auto-labeling
-│   ├── forecasting.py                # Holt-Winters / Linear / Rolling forecasting
-│   ├── remediation.py                # Human-in-the-loop incident state machine
-│   ├── reports.py                    # AI-generated health and incident reports
-│   ├── settings.py                   # Thresholds, i18n (EN + AR), provider config
-│   ├── storage.py                    # SQLite persistence (chat, alerts, incidents, eval)
-│   └── ui.py                         # Global CSS injection (NOC dark theme)
-│
-├── pages/
-│   ├── 1_Chatbot.py                  # Chat UI — RAG mode + Agent tool-calling mode
-│   ├── 2_Dashboard.py                # Device KPIs, alert feed, charts, forecast, incidents
-│   ├── 3_Network_Monitor.py          # Ping, HTTP, DNS, port scan, batch, traceroute, analysis
-│   └── 4_AI_Ops.py                   # Fault diagnosis, anomaly ML, log analysis, remediation
-│
+│   ├── knowledge_base.json         # 40 networking Q&A entries for RAG
+│   └── real_network_traffic.csv    # 8,640 rows, 5-min intervals (30 days)
+├── modules/                        # Core application modules
+│   ├── __init__.py                 # Python 3.14 import-compat shim
+│   ├── ai_ops.py                   # Operational AI: troubleshooting plans, log RCA, predictive signals
+│   ├── alerts.py                   # Threshold-based alert engine
+│   ├── anomaly_detector.py         # RF+GB ensemble with auto-labeling
+│   ├── chatbot.py                  # RAG orchestration: retrieve → prompt → LLM
+│   ├── agent.py                    # Agentic chatbot with 5-tool function-calling
+│   ├── data_sources.py             # Live / real-CSV / simulated data adapters
+│   ├── diagnostics_bridge.py       # Alert → KB context → LLM explanation
+│   ├── forecasting.py              # Holt-Winters / Linear / Rolling forecasting
+│   ├── knowledge_base.py           # TF-IDF search engine with LRU cache
+│   ├── llm_client.py               # Groq / Gemini wrapper with fallback
+│   ├── network_monitor.py          # ICMP, HTTP, DNS, port scanner, traceroute
+│   ├── remediation.py              # Human-in-the-loop incident state machine
+│   ├── reports.py                  # AI-generated health & incident reports
+│   ├── settings.py                 # Thresholds, i18n (EN + AR), provider config
+│   ├── storage.py                  # SQLite persistence (chat, alerts, incidents, eval)
+│   └── ui.py                       # Global CSS injection (NOC dark theme, RTL)
+├── pages/                          # Streamlit multi-page app
+│   ├── 1_Chatbot.py                # RAG mode + Agent tool-calling mode
+│   ├── 2_Dashboard.py              # Device KPIs, alerts, charts, forecast, incidents
+│   ├── 3_Network_Monitor.py        # Ping, HTTP, DNS, port scan, batch, traceroute, analysis
+│   └── 4_AI_Ops.py                 # Fault diagnosis, anomaly ML, log analysis, remediation
 ├── tests/
-│   └── test_ai_workflows.py          # Unit tests for core AI workflows
-│
-└── dev/                              # Development & benchmark scripts
-    ├── bench_deep.py                 # Deep learning model comparison
-    ├── bench_models.py               # Anomaly detection model benchmark
-    ├── eval_accuracy.py              # Full accuracy evaluation (ML + forecast)
-    ├── feature_performance.py        # Knowledge base and alert perf tests
-    ├── run_sanity_checks.py          # Core module smoke tests
-    └── tune_threshold.py             # Decision threshold calibration
+│   └── test_ai_workflows.py        # Unit tests for core AI workflows
+└── dev/                            # Development & benchmark scripts
+    ├── bench_deep.py               # Deep-learning model comparison
+    ├── bench_models.py             # Anomaly-detection model benchmark
+    ├── eval_accuracy.py            # Full accuracy evaluation (anomaly + forecast)
+    ├── feature_performance.py      # Knowledge-base & alert performance tests
+    ├── run_sanity_checks.py        # Core-module smoke tests
+    └── tune_threshold.py           # Decision-threshold calibration
 ```
+
+> `network_bot.db`, `tmp_perf_test.db`, and `.streamlit/secrets.toml` are **auto-created at runtime** and are git-ignored.
 
 ---
 
-## Setup (Local)
+## Quick Start
 
 ### Prerequisites
 
-- **Python 3.12** (required — Python 3.14 has import compatibility issues)
+- **Python 3.12** — required (Python 3.14 has import-compatibility issues, see `modules/__init__.py`).
 - **Groq API key** (free) — [console.groq.com](https://console.groq.com)
-- *(Optional)* Gemini API key — [aistudio.google.com](https://aistudio.google.com)
+- *(Optional)* **Gemini API key** — [aistudio.google.com](https://aistudio.google.com) (used as automatic fallback)
 
 ### Install & Run
 
 ```bash
-# Clone and enter directory
 git clone https://github.com/Mshabrawy-m/AI-Smart-Bot-for-Network-Management.git
 cd AI-Smart-Bot-for-Network-Management
 
-# Create virtual environment
 python -m venv .venv
 .venv\Scripts\activate        # Windows
-# source .venv/bin/activate   # Linux/macOS
+# source .venv/bin/activate   # Linux / macOS
 
-# Install dependencies
 pip install -r requirements.txt
 
-# Configure API keys
-copy .streamlit\secrets.toml.example .streamlit\secrets.toml
+cp .streamlit/secrets.toml.example .streamlit/secrets.toml
 # Edit .streamlit/secrets.toml with your API keys
 
-# Run
 streamlit run app.py
 ```
 
 Open [http://localhost:8501](http://localhost:8501).
 
-### Secrets configuration
+---
+
+## Configuration (API keys & secrets)
 
 ```toml
 # .streamlit/secrets.toml
-LLM_PROVIDER = "groq"
 GROQ_API_KEY = "gsk_your_key_here"
+GEMINI_API_KEY = "your_gemini_key_here"   # optional fallback
+LLM_PROVIDER = "groq"                     # "groq" (primary) or "gemini"
 
-# Optional fallback provider:
-# LLM_PROVIDER = "gemini"
-# GEMINI_API_KEY = "your_gemini_key_here"
-
-# Optional: override monitored hosts for live mode
-# MONITORED_HOSTS = "192.168.1.1, 10.0.0.1, 8.8.8.8"
+# Optional: comma-separated hosts/IPs to monitor in Live mode.
+# Defaults to public probes (Google DNS, Cloudflare, etc.)
+# MONITORED_HOSTS = "192.168.1.1, 8.8.8.8, 1.1.1.1"
 ```
 
-> **Never commit `secrets.toml`.** It is already in `.gitignore`.
+> **Never commit `secrets.toml`.** It is listed in `.gitignore`.
 
 ---
 
-## Deploy to Streamlit Community Cloud
+## Usage Guide
 
-1. Push this repo to GitHub with `app.py` at the root.
-2. Go to [share.streamlit.io](https://share.streamlit.io) → **New app** → select repo → main file `app.py`.
-3. In **Settings → Advanced**, set **Python version to 3.12** (required — Cloud ignores `runtime.txt`).
-4. In **Settings → Secrets**, add your API keys:
-   ```toml
-   LLM_PROVIDER = "groq"
-   GROQ_API_KEY = "gsk_your_key_here"
-   ```
-5. Click **Deploy**. Every push redeploys automatically.
-
-### Deployment limitations
-
-Streamlit Cloud **cannot reach private LAN addresses** (`192.168.x.x`, `10.x.x.x`). Live mode pings public hosts (Google DNS, Cloudflare, etc.) but not your internal router. For real LAN monitoring, deploy on-premises or use a VPN. Simulated mode works identically everywhere.
+| Page | Purpose |
+|------|---------|
+| **Home** | Welcome, quick-start, system status snapshot, recent incidents. |
+| **Chatbot** | Ask networking questions. Toggle **RAG mode** (fast, KB-grounded) or **Agent mode** (live tool calling). |
+| **Dashboard** | Device KPIs, alert feed, ML-anomaly scores, 24h forecast with confidence bands, incident lifecycle. |
+| **Network Monitor** | Run ping / HTTP / DNS / port-scan / traceroute on single or multiple hosts; view a multi-host analysis table. |
+| **AI Ops** | Fault diagnosis, anomaly detection scores, log root-cause analysis, capacity trends, and remediation with approval gates. |
 
 ---
 
@@ -218,43 +289,40 @@ Streamlit Cloud **cannot reach private LAN addresses** (`192.168.x.x`, `10.x.x.x
 
 ### Anomaly Detection (`modules/anomaly_detector.py`)
 
-- **Algorithm:** Supervised ensemble — RandomForest (300 trees) + GradientBoosting (300 trees) with soft voting
+- **Algorithm:** Supervised ensemble — RandomForest (300 trees) + GradientBoosting (300 trees) with soft voting.
 - **Auto-labeling:** Domain rules generate training labels without manual annotation:
-  - Contextual spikes (>k × rolling standard deviation)
+  - Contextual spikes (> k × rolling std)
   - Global IQR outlier gates
   - Sudden change detection
-  - Hard thresholds per metric (packet_loss > 3%, latency > 150ms, CPU > 90%)
-- **Features:** Rolling mean/std/z-score (24-period window), rate-of-change, time features (hour, day_of_week, business_hour, peak_hour)
-- **Decision:** Threshold 0.65 with Z-score safety gate (4.0σ) for extreme outliers
-- **Output:** Anomaly score (0–1) + per-feature contributions
+  - Hard thresholds per metric (packet_loss > 3%, latency > 150 ms, CPU > 90%)
+- **Features:** Rolling mean / std / z-score (24-period window), rate-of-change, time features (hour, day_of_week, business_hour, peak_hour).
+- **Decision:** Score threshold 0.65 with a Z-score safety gate (4.0σ) for extreme outliers.
+- **Output:** Anomaly score (0–1) + per-feature contributions.
 
 ### Forecasting (`modules/forecasting.py`)
 
 - **Three methods** auto-selected by data characteristics:
-  - **Exponential Smoothing** (Holt-Winters with damped trend) — for strong trends
-  - **Linear Regression** — for moderate trends
-  - **Rolling Average** — for high variance or insufficient data
-- **Output:** Predicted value + 95% confidence interval
-- **Use:** Dashboard warns when forecast exceeds capacity threshold within 30-minute horizon
+  - **Exponential Smoothing** (Holt-Winters with damped trend) — strong trends
+  - **Linear Regression** — moderate trends
+  - **Rolling Average** — high variance or insufficient data
+- **Output:** Predicted value + 95% confidence interval.
+- **Use:** The Dashboard warns when a forecast crosses a capacity threshold within the 30-min horizon.
 
 ### Knowledge Base / RAG (`modules/knowledge_base.py`)
 
-- **Content:** 40 networking entries covering OSI, TCP/IP, DNS, DHCP, VLAN, routing, switching, firewalls, VPN, SNMP, BGP, OSPF, load balancing, and more
-- **Indexing:** TF-IDF vectorization over `topic + keywords + answer` text
-- **Retrieval:** Cosine similarity with LRU cache (128 entries)
-- **Evaluation:** Logs retrieval score, hit/miss, and latency per query
+- **Content:** 40 networking entries covering OSI model, TCP/IP, DNS, DHCP, VLAN, routing, switching, firewalls, VPN, SNMP, BGP, OSPF, load balancing, and more.
+- **Indexing:** TF-IDF vectorization over `topic + keywords + answer`.
+- **Retrieval:** Cosine similarity with an LRU cache (128 entries).
 
 ---
 
 ## Results
 
-**What this system does** — monitors live/real/simulated network infrastructure (ICMP, HTTP, DNS, port scan, traceroute), classifies device/metric states with an ML anomaly detector, forecasts traffic capacity, and explains alerts / answers questions through a Groq/Gemini LLM agent with retrieval-augmented grounding and human-in-the-loop remediation.
+All numbers are produced by the evaluation harness in `dev/eval_accuracy.py` on `data/real_network_traffic.csv` (8,640 rows, 5-minute intervals).
 
-**Tools used:** scikit-learn (RandomForest + GradientBoosting ensemble, TF-IDF retrieval), statsmodels (Holt-Winters), Groq & Gemini LLM APIs, Streamlit UI, SQLite (WAL) persistence, `ping3`/`requests`/`socket`/`psutil`.
+### Classification (anomaly detection)
 
-### Anomaly Detection (classification) — RF + GB Ensemble
-
-Evaluated on `data/real_network_traffic.csv` (8,640 rows, 5-min intervals; 80/20 split → 6,287 normal / 625 anomalies auto-labeled in training). Ground truth = same domain rules used for auto-labeling; metrics computed on the held-out 20% test set.
+Time-aware RF + GB ensemble, 80/20 split (6,287 normal / 625 annotated anomalies in training, 29 engineered features). Ground truth = the same domain rules used for auto-labeling; metrics computed on the held-out 20% test set.
 
 | Metric | Value |
 |---|---|
@@ -262,13 +330,18 @@ Evaluated on `data/real_network_traffic.csv` (8,640 rows, 5-min intervals; 80/20
 | Recall | 0.993 |
 | F1 Score | 0.993 |
 | False Positive Rate | 0.0006 |
-| True positives / false negatives | 146 / 1 |
+| True positives | 146 |
+| False negatives | 1 |
 | False alarms | 1 |
-| Test anomalies | 147 / 1,728 (8.5%) |
+| Test anomalies detected | 147 / 1,728 (8.5%) |
 
-### Time Series Forecasting — 30-min horizon (walk-forward, n = 354 windows)
+> Synthetic-injection sensitivity (rate 3–20% at severity 2–10×) is also reported by the harness in `dev/eval_accuracy.py`.
 
-| Metric | MAE | MAPE | RMSE | Model selected |
+### Time series forecasting
+
+Walk-forward evaluation, 30-minute horizon, 354 windows. Method is auto-selected per metric.
+
+| Metric | MAE | MAPE | RMSE | Method selected |
 |---|---|---|---|---|
 | bandwidth_mbps | 20.99 | 34.6% | 39.66 | Exponential smoothing (Holt-Winters, damped trend) |
 | latency_ms | 8.05 | 19.8% | 19.73 | Rolling average |
@@ -276,26 +349,70 @@ Evaluated on `data/real_network_traffic.csv` (8,640 rows, 5-min intervals; 80/20
 
 \* MAPE is undefined for near-zero packet-loss values; MAE is the reliable metric there.
 
-Reproduce all of the above with `python dev/eval_accuracy.py`.
+---
+
+## Diagnostics & Remediation
+
+Operated from the **AI Ops** page, combining three modules:
+
+- **`diagnostics_bridge.py`** — on an alert, retrieves KB context, calls the LLM, and returns a cause + numbered, vendor-ready steps.
+- **`ai_ops.py`** — builds structured troubleshooting plans (`build_troubleshooting_plan`), performs keyword-based log root-cause analysis (`analyze_logs`), generates predictive risk signals (`build_predictive_signal`), and assembles plain-text incident reports (`build_incident_report`).
+- **`remediation.py`** — a human-in-the-loop incident state machine: **create → diagnose → suggest → approve/reject**, with every action persisted to `network_bot.db`.
 
 ---
 
-## APIs & Services
+## Evaluation & Logging
 
-| Service | Purpose | Access |
-|---------|---------|--------|
-| **Groq** | Primary LLM (`openai/gpt-oss-120b`) | Free tier, API key in secrets |
-| **Google Gemini** | Fallback LLM (`gemini-2.0-flash`) | Free tier, API key in secrets |
-| **ping3** | ICMP latency & reachability | Local library, no key |
-| **psutil** | Host CPU, memory, network I/O | Local library, no key |
-| **requests** | HTTP health checks | Standard library |
-| **socket** | DNS lookups, TCP probes | Standard library |
+Every chatbot query and alert explanation is persisted to `network_bot.db` with:
 
-No external monitoring SaaS, no cloud database, no paid infrastructure required.
+- Retrieval score (TF-IDF cosine similarity of the top KB hit)
+- Retrieval hit/miss flag
+- End-to-end latency (ms)
+- Provider + temperature
+
+This enables reporting retrieval hit-rate and answer latency from real interactions during the graduation demo. See `modules/storage.py`.
 
 ---
 
-## Known Limitations
+## Testing
+
+```bash
+pip install pytest          # if not already installed
+pytest tests/test_ai_workflows.py -v
+```
+
+Tests cover: anomaly-detection outlier accuracy, alert explanation with a mocked LLM, operational-summary generation, predictive-signal building, incident-report structure, the full remediation lifecycle (create → diagnose → suggest → approve), and report fallback when the LLM call fails.
+
+---
+
+## Development Scripts
+
+| Script | Purpose |
+|--------|---------|
+| `dev/eval_accuracy.py` | Full accuracy evaluation — anomaly classification + walk-forward forecasting metrics. |
+| `dev/bench_models.py` | Anomaly-detection model comparison (RF / GB / Isolation Forest baselines). |
+| `dev/bench_deep.py` | Deep-learning baseline benchmarking. |
+| `dev/tune_threshold.py` | Calibrate the 0.65 decision threshold / Z-score gate. |
+| `dev/feature_performance.py` | Knowledge-base retrieval hit-rate and alert latency. |
+| `dev/run_sanity_checks.py` | Fast smoke tests for core modules. |
+
+---
+
+## Deploy to Streamlit Community Cloud
+
+1. Push this repo to GitHub with `app.py` at the root.
+2. Go to [share.streamlit.io](https://share.streamlit.io) → **New app** → select your repo → `app.py`.
+3. In **Settings → Advanced**, set **Python version to 3.12** (Cloud ignores `runtime.txt`).
+4. In **Settings → Secrets**, add your API keys (same format as `secrets.toml`).
+5. Click **Deploy**. Every push redeploys automatically.
+
+### Deployment limitations
+
+Streamlit Cloud **cannot reach private LAN addresses** (`192.168.x.x`, `10.x.x.x`). Live mode probes public hosts (Google DNS, Cloudflare) but not internal routers. For real LAN monitoring, deploy on-premises or via a VPN. **Simulated mode** works identically everywhere.
+
+---
+
+## Limitations
 
 | Constraint | Detail |
 |-----------|--------|
@@ -306,35 +423,18 @@ No external monitoring SaaS, no cloud database, no paid infrastructure required.
 | **Agent latency** | 2–5s per tool call, up to 4 iterations per query. |
 | **ICMP privileges** | Raw sockets may require admin. Falls back to TCP probing (ports 443/80). |
 | **TF-IDF vs embeddings** | Fast and free but misses semantic similarity. Upgrade path: embedding vector store. |
-| **Python 3.14** | Has import machinery incompatibilities on Streamlit Cloud. Use Python 3.12. |
+| **Python 3.14** | Has import-machinery incompatibilities on Streamlit Cloud. Use Python 3.12. |
 
 ---
 
-## Language Support
+## Troubleshooting
 
-The UI supports **English** and **Arabic**. Toggle in the sidebar. Arabic text renders RTL via CSS. All labels, captions, and section headers have translations in `modules/settings.py`.
-
----
-
-## Evaluation Hooks
-
-Every chatbot query and alert explanation is logged to `network_bot.db` with:
-- Retrieval score (TF-IDF cosine similarity of top KB hit)
-- Retrieval hit/miss flag
-- End-to-end latency (ms)
-- Provider and temperature
-
-This enables reporting retrieval hit-rate and answer latency from real interactions during the graduation demo.
-
----
-
-## Testing
-
-```bash
-pytest tests/test_ai_workflows.py -v
-```
-
-Tests cover: anomaly detection outlier accuracy, alert explanation with mocked LLM, operational summary generation, predictive signal building, incident report structure, remediation lifecycle (create → diagnose → suggest → approve), and report fallback when LLM fails.
+| Problem | Fix |
+|---------|-----|
+| `GROQ_API_KEY is not set` | Add `GROQ_API_KEY` to `.streamlit/secrets.toml` (copy from `secrets.toml.example`). |
+| Live ping shows all hosts down | Raw ICMP needs admin; the app falls back to TCP probes on ports 443/80. |
+| App fails to start | Confirm `python --version` is 3.12; reinstall with `python -m venv .venv && pip install -r requirements.txt`. |
+| Anomaly detector "not initialized" | It auto-trains on the first device query from 24h of history — wait one cycle or check the CSV loads. |
 
 ---
 
