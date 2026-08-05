@@ -312,7 +312,7 @@ Tests cover: anomaly detection outlier accuracy, alert explanation with mocked L
 |---|----------|
 | [1] | Groq Inc. — *GroqCloud LPU Inference Engine*. [https://groq.com](https://groq.com) |
 | [2] | Google DeepMind — *Gemini: A Family of Highly Capable Multimodal Models*, 2024. [arxiv.org/abs/2312.11805](https://arxiv.org/abs/2312.11805) |
-| [3] | OpenAI — *GPT-4 Technical Report*, 2023. [arxiv.org/abs/2303.08774](https://arxiv.org/abs/2303.08774) |
+| [3] | Liu, C., Xie, X., Zhang, X., & Cui, Y. — *Large Language Models for Networking: Workflow, Advances and Challenges*, 2024. [arxiv.org/abs/2404.12901](https://arxiv.org/abs/2404.12901) |
 | [4] | OpenAI — *Function Calling with Chat Completions API*. [platform.openai.com/docs/guides/function-calling](https://platform.openai.com/docs/guides/function-calling) |
 | [5] | Wei, J. et al. — *Chain-of-Thought Prompting Elicits Reasoning in Large Language Models*, NeurIPS 2022. [arxiv.org/abs/2201.11903](https://arxiv.org/abs/2201.11903) |
 | [6] | Yao, S. et al. — *ReAct: Synergizing Reasoning and Acting in Language Models*, ICLR 2023. [arxiv.org/abs/2210.03629](https://arxiv.org/abs/2210.03629) |
@@ -333,7 +333,7 @@ Tests cover: anomaly detection outlier accuracy, alert explanation with mocked L
 |---|----------|
 | [12] | Breiman, L. — *Random Forests*, Machine Learning 45(1), 2001. [doi.org/10.1023/A:1010933404324](https://doi.org/10.1023/A:1010933404324) |
 | [13] | Friedman, J. H. — *Greedy Function Approximation: A Gradient Boosting Machine*, Annals of Statistics, 2001. [doi.org/10.1214/aos/1013203451](https://doi.org/10.1214/aos/1013203451) |
-| [14] | Liu, F. T. et al. — *Isolation Forest*, ICDM 2008. [doi.org/10.1109/ICDM.2008.17](https://doi.org/10.1109/ICDM.2008.17) |
+| [14] | Bharathi, I. & Makhija, R. — *Network Intrusion Detection System using Random Forest and Gradient Boosting Machines*, 2024. [doi.org/10.1109/CONIT61985.2024.10627542](https://doi.org/10.1109/CONIT61985.2024.10627542) |
 | [15] | Chandola, V. et al. — *Anomaly Detection: A Survey*, ACM Computing Surveys 41(3), 2009. [doi.org/10.1145/1541880.1541882](https://doi.org/10.1145/1541880.1541882) |
 | [16] | Pedregosa, F. et al. — *Scikit-learn: Machine Learning in Python*, JMLR 12, 2011. [jmlr.org/papers/v12/pedregosa11a.html](https://jmlr.org/papers/v12/pedregosa11a.html) |
 | [17] | Dietterich, T. G. — *Ensemble Methods in Machine Learning*, MCS 2000. [doi.org/10.1007/3-540-45014-9_1](https://doi.org/10.1007/3-540-45014-9_1) |
@@ -345,7 +345,7 @@ Tests cover: anomaly detection outlier accuracy, alert explanation with mocked L
 | [18] | Hyndman, R. J. & Athanasopoulos, G. — *Forecasting: Principles and Practice*, 3rd ed., OTexts, 2021. [otexts.com/fpp3](https://otexts.com/fpp3/) |
 | [19] | Holt, C. C. — *Forecasting Seasonals and Trends by Exponentially Weighted Moving Averages*, International Journal of Forecasting, 2004. [doi.org/10.1016/j.ijforecast.2003.09.015](https://doi.org/10.1016/j.ijforecast.2003.09.015) |
 | [20] | Winters, P. R. — *Forecasting Sales by Exponentially Weighted Moving Averages*, Management Science, 1960. [doi.org/10.1287/mnsc.6.3.324](https://doi.org/10.1287/mnsc.6.3.324) |
-| [21] | Box, G. E. P. et al. — *Time Series Analysis: Forecasting and Control*, 5th ed., Wiley, 2015. [doi.org/10.1002/9781118619193](https://doi.org/10.1002/9781118619193) |
+| [21] | Hyndman, R. J., Koehler, A. B., Ord, J. K., & Snyder, R. D. — *Forecasting with Exponential Smoothing: The State Space Approach*, Springer Series in Statistics, 2008. [doi.org/10.1007/978-3-540-71918-2](https://doi.org/10.1007/978-3-540-71918-2) |
 
 ### Network Management & Monitoring
 
@@ -375,6 +375,20 @@ Tests cover: anomaly detection outlier accuracy, alert explanation with mocked L
 | [33] | Gartner — *Market Guide for AIOps Platforms*, 2022. [gartner.com/en/documents/4016379](https://www.gartner.com/en/documents/4016379) |
 | [34] | Bhattacharjee, A. et al. — *AIOps: Intelligent IT Operations for Cloud and Network Management*, IEEE, 2022. [doi.org/10.1109/ACCESS.2022.3187250](https://doi.org/10.1109/ACCESS.2022.3187250) |
 | [35] | Dang, Y. et al. — *AI in Operations Management: Applications and Challenges*, Production and Operations Management, 2022. [doi.org/10.1111/poms.13676](https://doi.org/10.1111/poms.13676) |
+
+### Information Retrieval (Lexical Models)
+
+| # | Reference |
+|---|----------|
+| [36] | Robertson, S. E. & Zaragoza, H. — *The Probabilistic Relevance Framework: BM25 and Beyond*, Foundations and Trends® in Information Retrieval, 2009. [doi.org/10.1561/1500000019](https://doi.org/10.1561/1500000019) |
+
+### AI-Driven Log Analysis & Human-in-the-Loop Remediation
+
+| # | Reference |
+|---|----------|
+| [37] | Liu, Y., Tao, S., Meng, W., Wang, J., Ma, W., Zhao, Y., Chen, Y., Yang, H., Jiang, Y., & Chen, X. — *Interpretable Online Log Analysis Using Large Language Models with Prompt Strategies (LogPrompt)*, Proc. ICPC 2024, 2023. [arxiv.org/abs/2308.07610](https://arxiv.org/abs/2308.07610) |
+| [38] | Wittkopp, T., Wiesner, P., & Kao, O. — *LogRCA: Log-based Root Cause Analysis for Distributed Services*, Euro-Par 2024, 2024. [arxiv.org/abs/2405.13599](https://arxiv.org/abs/2405.13599) |
+| [39] | Mukherjee, S. — *AI-Driven Autonomous IT Operations: A Human-in-the-Loop AIOps 2.0 Framework*, Int. J. Intell. Syst. Appl. Eng., 12(23s), 4317–4325, 2024. [doi.org/10.17762/ijisae.v12i23s.8304](https://doi.org/10.17762/ijisae.v12i23s.8304) |
 
 ---
 
