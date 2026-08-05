@@ -60,7 +60,7 @@
 
 - **Real-time monitoring** — ICMP, HTTP, DNS, port scanning, and traceroute
 - **ML anomaly detection** — a Random Forest + Gradient Boosting ensemble
-- **Capacity forecasting** — Holt-Winters, linear regression, and rolling-average methods, auto-selected per metric
+- **Capacity forecasting** — validation-driven auto-selection over persistence, rolling, EMA, linear, and daily-seasonal candidates, with conformal confidence intervals
 - **Retrieval-augmented chatbot** — grounded networking Q&A
 - **Agent mode** — an LLM that calls live tools to answer with real data, then explains alerts and proposes remediation
 
@@ -108,7 +108,7 @@ flowchart TB
         DI["diagnostics_bridge (alert → LLM → steps)"]
         AO["ai_ops (troubleshooting, log RCA, predictive)"]
         AD["anomaly_detector (RF+GB ensemble)"]
-        FC["forecasting (Holt-Winters / linear / rolling)"]
+        FC["forecasting (auto-selected classical models + conformal CI)"]
         AL["alerts (thresholds)"]
         RM["remediation (HITL state machine)"]
         RPT["reports"]
@@ -185,7 +185,7 @@ flowchart TB
 | **LLM (primary)** | Groq API (`openai/gpt-oss-120b`) via `groq` SDK |
 | **LLM (fallback)** | Google Gemini (`gemini-2.0-flash`) via `google-generativeai` |
 | **ML — Anomaly** | scikit-learn · RandomForest + GradientBoosting ensemble (300 trees each) with auto-labeling |
-| **ML — Forecast** | statsmodels (Holt-Winters) · scikit-learn (Linear Regression) · rolling average — auto-selected |
+| **ML — Forecast** | validation-driven auto-selection (persistence / rolling / EMA / linear / daily-seasonal) + conformal CI |
 | **ML — RAG** | TF-IDF vectorization + cosine similarity over a local JSON knowledge base |
 | **Charts** | Plotly (`graph_objects`) — bar, line, radar, dual-axis with threshold overlays |
 | **Network** | `ping3` (ICMP) · `socket` (TCP fallback, DNS) · `requests` (HTTP) · `psutil` (host metrics) · `python-nmap` (port scan) |
@@ -220,7 +220,7 @@ AI Smart Bot for Network Management System
 │   ├── agent.py                    # Agentic chatbot with 5-tool function-calling
 │   ├── data_sources.py             # Live / real-CSV / simulated data adapters
 │   ├── diagnostics_bridge.py       # Alert → KB context → LLM explanation
-│   ├── forecasting.py              # Holt-Winters / Linear / Rolling forecasting
+│   ├── forecasting.py              # Auto-selected classical forecasting + conformal CI (+ optional LSTM)
 │   ├── knowledge_base.py           # TF-IDF search engine with LRU cache
 │   ├── llm_client.py               # Groq / Gemini wrapper with fallback
 │   ├── network_monitor.py          # ICMP, HTTP, DNS, port scanner, traceroute
@@ -324,13 +324,22 @@ LLM_PROVIDER = "groq"                     # "groq" (primary) or "gemini"
 
 ### Forecasting (`modules/forecasting.py`)
 
-Three methods are auto-selected based on data characteristics:
+A validation-driven forecaster: a family of cheap classical candidates
+(persistence, rolling averages, EMA, linear trend, daily-seasonal averages) is
+scored on a held-out recent tail of the history at the exact forecast horizon,
+and the best model — or a small blend of the top two — produces the prediction.
+This replaced the previous variance-heuristic single-method forecaster.
 
-- **Exponential Smoothing** (Holt-Winters, damped trend) — for strong trends
-- **Linear Regression** — for moderate trends
-- **Rolling Average** — for high variance or insufficient data
-
-Output is a predicted value with a 95% confidence interval. The Dashboard warns when a forecast crosses a capacity threshold within the 30-minute horizon.
+- **Methods:** `auto` (recommended) plus explicit `persistence`, `rolling`,
+  `ema`, `linear`, `exponential` (Holt-Winters damped trend, explicit only),
+  `seasonal_hour`, `seasonal_naive`, and `lstm` (Keras, trained in an isolated
+  subprocess — opt-in, `use_deep_learning=True`).
+- **Confidence intervals:** conformal residual quantiles (asymmetric) floored
+  by the classical z·σ band, calibrated per metric from full-history step-ahead
+  residuals, so the stated 95% coverage is honest.
+- **Output:** predicted value + lower/upper bound + method metadata. The
+  Dashboard warns when a forecast crosses a capacity threshold within the
+  30-minute horizon.
 
 ### Knowledge Base / RAG (`modules/knowledge_base.py`)
 
@@ -367,11 +376,16 @@ Walk-forward evaluation, 30-minute horizon, 354 windows. Method is auto-selected
 
 | Metric | MAE | MAPE | RMSE | Method selected |
 |---|---|---|---|---|
-| bandwidth_mbps | 20.99 | 34.6% | 39.66 | Exponential smoothing (Holt-Winters, damped trend) |
-| latency_ms | 8.05 | 19.8% | 19.73 | Rolling average |
-| packet_loss_pct | 0.11 | N/A* | 0.54 | Exponential smoothing |
+| bandwidth_mbps | 19.95 | 32.9% | 38.16 | Same-hour-of-day average |
+| latency_ms | 8.03 | 19.5% | 19.93 | Exponential moving average |
+| packet_loss_pct | 0.084 | N/A* | 0.31 | Rolling (24) + rolling (10) blend |
 
 \* MAPE is undefined for near-zero packet-loss values; MAE is the reliable metric there.
+
+Empirical 95% confidence-interval coverage (same walk-forward protocol) is
+94.6% for bandwidth, 97.5% for latency, and 97.2% for packet loss — near the
+stated target on every metric, versus the previous forecaster's 88–98% spread
+with a fixed-width band.
 
 ---
 
