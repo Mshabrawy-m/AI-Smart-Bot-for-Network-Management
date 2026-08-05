@@ -38,7 +38,7 @@
   - [Knowledge Base / RAG](#knowledge-base--rag)
 - [Results](#results)
   - [Classification (anomaly detection)](#classification-anomaly-detection)
-  - [Time series forecasting](#time-series-forecasting)
+- [Time Series Results](#time-series-results)
 - [Diagnostics & Remediation](#diagnostics--remediation)
 - [Evaluation & Logging](#evaluation--logging)
 - [Testing](#testing)
@@ -238,6 +238,7 @@ AI Smart Bot for Network Management System
 │   └── test_ai_workflows.py        # Unit tests for core AI workflows
 └── dev/                            # Development & benchmark scripts
     ├── bench_deep.py               # Deep-learning model comparison
+    ├── bench_forecast.py           # Walk-forward forecast method comparison
     ├── bench_models.py             # Anomaly-detection model benchmark
     ├── eval_accuracy.py            # Full accuracy evaluation (anomaly + forecast)
     ├── feature_performance.py      # Knowledge-base & alert performance tests
@@ -370,9 +371,19 @@ Time-aware RF + GB ensemble, 80/20 split (6,287 normal / 625 annotated anomalies
 
 > Synthetic-injection sensitivity (rate 3–20% at severity 2–10×) is also reported by the harness in `dev/eval_accuracy.py`.
 
-### Time series forecasting
+---
 
-Walk-forward evaluation, 30-minute horizon, 354 windows. Method is auto-selected per metric.
+## Time Series Results
+
+All numbers come from the evaluation harness in `dev/eval_accuracy.py` plus the
+per-method sweep in `dev/bench_forecast.py`, both run against
+`data/real_network_traffic.csv` (8,640 rows, 5-minute intervals). Protocol:
+354 walk-forward windows, one forecast per window at a 30-minute horizon, method
+re-selected per window.
+
+![Actual vs 30-minute forecast — latency_ms](docs/figures/time_series_forecast_actual.svg)
+
+### Walk-forward evaluation (`auto` selector)
 
 | Metric | MAE | MAPE | RMSE | Method selected |
 |---|---|---|---|---|
@@ -382,10 +393,38 @@ Walk-forward evaluation, 30-minute horizon, 354 windows. Method is auto-selected
 
 \* MAPE is undefined for near-zero packet-loss values; MAE is the reliable metric there.
 
-Empirical 95% confidence-interval coverage (same walk-forward protocol) is
-94.6% for bandwidth, 97.5% for latency, and 97.2% for packet loss — near the
+### Model comparison (walk-forward MAE)
+
+| Method | bandwidth_mbps | latency_ms | packet_loss_pct |
+|---|---|---|---|
+| **auto** (per-window selection) | 19.95 | **8.03** | 0.084 |
+| seasonal_hour (same-hour-of-day average) | **19.82** | 8.10 | 0.087 |
+| rolling | 20.03 | 8.20 | 0.089 |
+| EMA | 20.22 | 8.35 | 0.077 |
+| persistence | 23.67 | 10.71 | **0.071** |
+| linear | 25.58 | 10.07 | 0.136 |
+
+The `auto` selector never commits to a single method: it scores every candidate
+on a held-out tail at the target horizon and blends the top two when they are
+within 5% (see `modules/forecasting.py`). It is best or near-best on every row —
+matching the seasonal average on bandwidth (19.95 vs 19.82), beating all single
+methods on latency, and on packet_loss trading slightly higher MAE (0.084 vs
+0.071) for a far better RMSE (0.310 vs 0.475, i.e. fewer large misses).
+Rolling-family models win ~71% of windows and seasonal (same-hour-of-day)
+averages ~28%, so the selector adapts per window instead of assuming one model
+fits all metrics.
+
+### Confidence-interval coverage
+
+Empirical 95% confidence-interval coverage under the same walk-forward protocol
+is 94.6% for bandwidth, 97.5% for latency, and 97.2% for packet loss — near the
 stated target on every metric, versus the previous forecaster's 88–98% spread
 with a fixed-width band.
+
+> **LSTM:** an optional Keras LSTM (trained in an isolated subprocess,
+> `use_deep_learning=True`) is available but requires TensorFlow/Keras, which
+> are not in the default runtime; it never beat the classical candidates on
+> these series, so it stays opt-in.
 
 ---
 
@@ -429,6 +468,7 @@ Tests cover: anomaly-detection outlier accuracy, alert explanation with a mocked
 |--------|---------|
 | `dev/eval_accuracy.py` | Full accuracy evaluation — anomaly classification + walk-forward forecasting metrics |
 | `dev/bench_models.py` | Anomaly-detection model comparison (RF / GB / Isolation Forest baselines) |
+| `dev/bench_forecast.py` | Walk-forward forecast method comparison (persistence / rolling / EMA / linear / seasonal vs `auto`) |
 | `dev/bench_deep.py` | Deep-learning baseline benchmarking |
 | `dev/tune_threshold.py` | Calibrate the 0.65 decision threshold / Z-score gate |
 | `dev/feature_performance.py` | Knowledge-base retrieval hit-rate and alert latency |
