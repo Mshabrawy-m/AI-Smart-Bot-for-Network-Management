@@ -7,7 +7,7 @@ import pandas as pd
 import streamlit as st
 
 from modules.alerts import generate_alerts
-from modules.anomaly_detector import AnomalyDetector, get_cached_detector, inject_synthetic_anomalies
+from modules.anomaly_detector import AnomalyDetector, get_cached_detector
 from modules.data_sources import get_data_source, render_data_source_sidebar
 from modules.diagnostics_bridge import explain_alert, alert_to_chat_prompt
 from modules.forecasting import NetworkForecaster, dataframe_signature
@@ -306,30 +306,6 @@ with tab_anomaly:
             )
         except Exception as exc:
             st.caption(f"Batch scan unavailable: {exc}")
-
-        st.markdown('<hr class="section-rule">', unsafe_allow_html=True)
-        # Evaluation against synthetic injected anomalies
-        with st.expander("Model evaluation (synthetic anomalies)", expanded=False):
-            eval_rate = st.slider("Synthetic anomaly injection rate", 0.01, 0.20, 0.05, 0.01,
-                                  key="eval_inject_rate")
-            if st.button("Run evaluation", key="run_ml_eval"):
-                with st.spinner("Injecting anomalies and evaluating…"):
-                    try:
-                        modified_df, labels = inject_synthetic_anomalies(
-                            traffic_df.copy(), anomaly_rate=eval_rate
-                        )
-                        metrics = detector.evaluate(modified_df, labels)
-                        ec1, ec2, ec3, ec4 = st.columns(4)
-                        ec1.metric("Precision", f"{metrics['precision']:.2%}")
-                        ec2.metric("Recall",    f"{metrics['recall']:.2%}")
-                        ec3.metric("F1 Score",  f"{metrics['f1']:.2%}")
-                        ec4.metric("False Positive Rate", f"{metrics['false_positive_rate']:.2%}")
-                        st.caption(
-                            f"TP={metrics['true_positives']}  FP={metrics['false_positives']}  "
-                            f"TN={metrics['true_negatives']}  FN={metrics['false_negatives']}"
-                        )
-                    except Exception as exc:
-                        st.error(f"Evaluation failed: {exc}")
     else:
         st.info("Model not trained yet. Click **Train / Retrain model** above.")
 
