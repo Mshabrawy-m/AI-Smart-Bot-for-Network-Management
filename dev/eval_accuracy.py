@@ -105,9 +105,8 @@ for metric in ["bandwidth_mbps", "latency_ms", "packet_loss_pct"]:
         mapes.append(abs(err) / (abs(actual) + 1e-6) * 100)
 
     if maes:
-        mape_str = f"{np.mean(mapes):.2f}" if np.mean(mapes) < 999 else "N/A*"
-        print(f"  {metric:<22}  {np.mean(maes):>8.3f}  {mape_str:>10}  "
+        print(f"  {metric:<22}  {np.mean(maes):>8.3f}  {np.mean(mapes):>10.2f}  "
               f"{np.sqrt(np.mean(rmses)):>8.3f}  {last_method:<15}  {len(maes)}")
 
-print("\n  * MAPE undefined for near-zero packet_loss values; use MAE instead.")
+print("\n  * MAPE is inflated for near-zero metrics like packet_loss; MAE is the reliable metric there.")
 print("\nDone.")
