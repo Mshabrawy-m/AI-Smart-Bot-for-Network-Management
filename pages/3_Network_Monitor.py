@@ -458,6 +458,7 @@ with tab5:
         run_batch = True
     if preset_cols[3].button("Network Infrastructure", key="preset_network"):
         batch_hosts = "8.8.8.8\n1.1.1.1\ncloudflare.com\nfast.com"
+        run_batch = True
 
     if run_batch and batch_hosts:
         hosts = [h.strip() for h in batch_hosts.split("\n") if h.strip()]
