@@ -2,7 +2,11 @@ import pandas as pd
 import streamlit as st
 import json
 import time
-from streamlit_autorefresh import st_autorefresh
+
+try:
+    from streamlit_autorefresh import st_autorefresh
+except ImportError:
+    st_autorefresh = None
 
 from modules.network_monitor import (
     real_ping, http_health_check, batch_ping, calculate_latency_stats,
@@ -427,7 +431,7 @@ with tab5:
         with col_refresh2:
             st.markdown("<br>", unsafe_allow_html=True)
             enable_auto_refresh = st.checkbox("Enable Auto-Refresh", key="enable_auto_refresh")
-    if enable_auto_refresh:
+    if enable_auto_refresh and st_autorefresh is not None:
         st_autorefresh(interval=auto_refresh_interval * 1000, key="auto_refresh_timer")
     
     col_batch_input, col_batch_btn = st.columns([3, 1])
