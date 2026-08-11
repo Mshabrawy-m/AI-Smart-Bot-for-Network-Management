@@ -22,6 +22,7 @@ tmp_*.db
 
 # Test / tooling artifacts
 .pytest_cache/
+eval_err.txt
 .coverage
 htmlcov/
 

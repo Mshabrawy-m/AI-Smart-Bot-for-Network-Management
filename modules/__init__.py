@@ -66,6 +66,11 @@ for _name in _SUBMODULES:
         _mod = importlib.util.module_from_spec(_spec)
         sys.modules[_fqn] = _mod
         _spec.loader.exec_module(_mod)
+        # Mirror normal package import behaviour: expose each submodule as an
+        # attribute of the package (``modules.diagnostics_bridge`` etc.) so
+        # attribute access and mock.patch/monkeypatch.setattr("modules.X...")
+        # work exactly as with a regular package.
+        setattr(sys.modules[_pkg_name], _name, _mod)
     except Exception:
         # Never leave a partially-initialized module cached — remove it so the
         # normal import path can retry (or surface a real error) instead of a

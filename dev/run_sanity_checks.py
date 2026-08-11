@@ -1,6 +1,17 @@
+import sys
 import tempfile
-import pandas as pd
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+# The script prints strings with emoji (e.g. 🔴); Windows consoles default to
+# cp1252 which cannot encode them.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
+import pandas as pd
 from modules.knowledge_base import load_knowledge_base
 from modules.anomaly_detector import AnomalyDetector
 from modules.alerts import generate_alerts
@@ -8,7 +19,7 @@ from modules.data_sources import SimulatedDataSource
 from modules.storage import init_db, save_chat_message, get_history
 from modules.llm_client import get_llm_response
 
-root = Path(__file__).resolve().parent
+root = Path(__file__).resolve().parent.parent
 kb = load_knowledge_base(root / "data" / "knowledge_base.json")
 print('KB entries', len(kb.entries))
 search = kb.search('dns troubleshooting', top_k=2)

@@ -46,7 +46,11 @@ def _engineer_features(df: pd.DataFrame, feature_cols: list[str]) -> pd.DataFram
     for col in feature_cols:
         s = out[col]
         rm  = s.rolling(ROLLING_WINDOW, min_periods=3).mean().fillna(s.mean())
-        rs  = s.rolling(ROLLING_WINDOW, min_periods=3).std().fillna(s.std()).clip(lower=1e-6)
+        # Rolling std of a single point is NaN (pandas). Fall back to the
+        # sample std, then to a small epsilon so prediction never yields NaN.
+        sample_std = s.std()
+        rs  = s.rolling(ROLLING_WINDOW, min_periods=3).std()
+        rs  = rs.fillna(sample_std if pd.notna(sample_std) else 0.0).fillna(0.0).clip(lower=1e-6)
         out[f"{col}_roll_mean"] = rm
         out[f"{col}_roll_std"]  = rs
         out[f"{col}_zscore"]    = ((s - rm) / rs).clip(-10, 10)
@@ -172,10 +176,13 @@ class AnomalyDetector:
 
         # Auto-label
         y = _auto_label(history_df, feature_cols)
-        if y.sum() < 5:
+        n_anom = int(y.sum())
+        n_norm = int((y == 0).sum())
+        if n_anom < 1 or n_norm < 1:
             raise ValueError(
-                f"Auto-labeling found only {y.sum()} anomalies — "
-                "increase training history or check data quality."
+                f"Auto-labeling found only {n_anom} anomalies and {n_norm} normal "
+                "points — a binary ensemble needs at least one of each. "
+                "Increase training history or check data quality."
             )
 
         # Engineer features

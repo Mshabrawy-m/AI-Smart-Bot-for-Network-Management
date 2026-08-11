@@ -406,9 +406,9 @@ with tab5:
     with st.expander("Alert Thresholds", expanded=False):
         col_thresh1, col_thresh2 = st.columns(2)
         with col_thresh1:
-            st.number_input("Latency Threshold (ms)", min_value=1, max_value=10000, value=st.session_state.latency_threshold, key="latency_threshold")
+            st.number_input("Latency Threshold (ms)", min_value=1, max_value=10000, key="latency_threshold")
         with col_thresh2:
-            st.number_input("Packet Loss Threshold (%)", min_value=0, max_value=100, value=st.session_state.packet_loss_threshold, key="packet_loss_threshold")
+            st.number_input("Packet Loss Threshold (%)", min_value=0, max_value=100, key="packet_loss_threshold")
     
     # Scan configuration
     with st.expander("Scan Configuration", expanded=False):

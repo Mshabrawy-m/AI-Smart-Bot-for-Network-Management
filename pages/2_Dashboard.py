@@ -167,19 +167,20 @@ with tab_overview:
             )
 
             btn_key = f"explain_{idx}_{alert['device']}_{alert['metric']}"
-            if st.button("Explain →", key=btn_key, help="Get AI diagnosis for this alert"):
-                with st.spinner("Generating diagnosis…"):
-                    try:
-                        explanation = explain_alert(alert)
-                        st.session_state.alert_explanations[btn_key] = explanation
-                        save_alert(alert, explanation)
-                    except LLMConfigurationError as exc:
-                        st.session_state.alert_explanations[btn_key] = f"⚠ {exc}"
-                    except Exception as exc:
-                        st.session_state.alert_explanations[btn_key] = f"Error: {exc}"
+            if level != "ok":
+                if st.button("Explain →", key=btn_key, help="Get AI diagnosis for this alert"):
+                    with st.spinner("Generating diagnosis…"):
+                        try:
+                            explanation = explain_alert(alert)
+                            st.session_state.alert_explanations[btn_key] = explanation
+                            save_alert(alert, explanation)
+                        except LLMConfigurationError as exc:
+                            st.session_state.alert_explanations[btn_key] = f"⚠ {exc}"
+                        except Exception as exc:
+                            st.session_state.alert_explanations[btn_key] = f"Error: {exc}"
 
-            if btn_key in st.session_state.alert_explanations:
-                st.info(st.session_state.alert_explanations[btn_key])
+                if btn_key in st.session_state.alert_explanations:
+                    st.info(st.session_state.alert_explanations[btn_key])
 
     with right:
         st.markdown('<span class="kpi-label">Host Metrics (this machine)</span>', unsafe_allow_html=True)

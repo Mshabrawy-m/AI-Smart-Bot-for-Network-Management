@@ -2,24 +2,24 @@ import pandas as pd
 
 from modules.ai_ops import build_incident_report, build_operational_summary, build_predictive_signal
 from modules.anomaly_detector import AnomalyDetector
+from modules.data_sources import SimulatedDataSource
 from modules.diagnostics_bridge import explain_alert
 from modules.remediation import RemediationEngine, RemediationActionType
 from modules.reports import ReportGenerator
 
 
 def test_anomaly_detector_detects_outlier():
-    detector = AnomalyDetector(contamination=0.2)
-    history = pd.DataFrame(
-        [
-            {"bandwidth_mbps": 100, "latency_ms": 10, "packet_loss_pct": 0.1},
-            {"bandwidth_mbps": 98, "latency_ms": 11, "packet_loss_pct": 0.2},
-            {"bandwidth_mbps": 900, "latency_ms": 200, "packet_loss_pct": 15.0},
-            {"bandwidth_mbps": 95, "latency_ms": 12, "packet_loss_pct": 0.3},
-        ]
-    )
+    detector = AnomalyDetector(contamination=0.1)
+    # 24h of simulated traffic (288 points, ~2% anomalies) — enough to train
+    # the RF + GB ensemble and exercise single-point prediction end to end.
+    history = SimulatedDataSource(seed=42).get_traffic_history(hours=24)
     detector.fit(history)
-    result = detector.predict({"bandwidth_mbps": 900, "latency_ms": 200, "packet_loss_pct": 15.0})
-    assert bool(result["is_anomaly"]) is True
+
+    extreme = detector.predict({"bandwidth_mbps": 5000.0, "latency_ms": 900.0, "packet_loss_pct": 80.0})
+    assert bool(extreme["is_anomaly"]) is True
+
+    normal = detector.predict({"bandwidth_mbps": 50.0, "latency_ms": 20.0, "packet_loss_pct": 0.5})
+    assert bool(normal["is_anomaly"]) is False
 
 
 def test_explain_alert_returns_actionable_text(monkeypatch):
